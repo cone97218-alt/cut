@@ -1,0 +1,229 @@
+/* ==========================================================================
+   UI 精简瘦身 (UI Trimmer) Extension - Stylesheet
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Module 1: 页面精简 Hiding Rules
+   -------------------------------------------------------------------------- */
+
+/* Feature 1: 隐藏问号图标引导及教程类 (Hide Question Mark Tutorials & Help Icons) */
+body.cut-hide-tutorials .note-link-span,
+body.cut-hide-tutorials .notes-link,
+body.cut-hide-tutorials a.topRightInset,
+body.cut-hide-tutorials [name="samplerHelpButton"],
+body.cut-hide-tutorials #samplerHelpButton,
+body.cut-hide-tutorials #chartokenwarning,
+body.cut-hide-tutorials .fa-question-circle:not(.cut-keep),
+body.cut-hide-tutorials .fa-circle-question:not(.cut-keep),
+body.cut-hide-tutorials a[href*="docs.sillytavern.app"] .fa-circle-question,
+body.cut-hide-tutorials a[href*="docs.sillytavern.app"] .fa-question-circle,
+body.cut-hide-tutorials .shepherd-element,
+body.cut-hide-tutorials .st-guided-tour-step {
+    display: none !important;
+}
+
+/* Feature 2: 隐藏选择语言设置框 (Hide Language Selector Block) */
+body.cut-hide-language-select #UI-language-block,
+body.cut-hide-language-select #onboarding-UI-language-block,
+body.cut-hide-language-select select#ui_language_select,
+body.cut-hide-language-select select#onboarding_ui_language_select {
+    display: none !important;
+}
+
+/* Feature 3: 隐藏三连跳转链接 (Hide Docs / GitHub / Discord Redirect Links) */
+body.cut-hide-redirect-links .welcomeShortcuts a[href*="docs.sillytavern.app"],
+body.cut-hide-redirect-links .welcomeShortcuts a[href*="github.com"],
+body.cut-hide-redirect-links .welcomeShortcuts a[href*="discord.gg"],
+body.cut-hide-redirect-links .welcomeShortcuts .welcomeShortcutsSeparator,
+body.cut-hide-redirect-links .onboarding a[href*="docs.sillytavern.app"],
+body.cut-hide-redirect-links .onboarding a[href*="discord.gg"],
+body.cut-hide-redirect-links .welcomeHeader a[href*="docs.sillytavern.app"],
+body.cut-hide-redirect-links .welcomeHeader a[href*="github.com"],
+body.cut-hide-redirect-links .welcomeHeader a[href*="discord.gg"] {
+    display: none !important;
+}
+
+/* Feature 4: 隐藏滑块手动输入提示 (Hide Slider Manual Input Tip) */
+body.cut-hide-slider-tips #clickSlidersTips {
+    display: none !important;
+}
+
+/* Feature 5: 隐藏高级格式化 Chat Completion 无效设置 (CC invalid settings & notice) */
+body.cut-hide-cc-invalid #advanced-formatting-cc-notice,
+body.cut-hide-cc-invalid [data-cc-null] {
+    display: none !important;
+}
+
+
+/* --------------------------------------------------------------------------
+   Module 2: 预设折叠条及人设/用户设置绝对等距样式 (Strict Equal Spacing)
+   -------------------------------------------------------------------------- */
+
+/* 1. Reset columns container flex gaps & margins */
+#user-settings-block-content,
+#user-settings-block div[name="UserSettingsFirstColumn"],
+#user-settings-block div[name="UserSettingsSecondColumn"],
+#user-settings-block div[name="UserSettingsThirdColumn"] {
+    gap: 0px !important;
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
+}
+
+/* 2. Target every drawer block in user settings strictly */
+#user-settings-block .inline-drawer,
+#theme_colors,
+#cut_m2_gen_params_drawer,
+#cut_m2_wi_top_drawer,
+#cut_m2_persona_drawer,
+#cut_m2_ui_effects_drawer,
+#cut_m2_custom_css_drawer,
+#cut_m2_theme_toggles_drawer,
+#cut_m2_user_advanced_drawer {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
+}
+
+/* 3. Target every drawer header bar strictly so vertical height & margins are 100% identical */
+#user-settings-block .inline-drawer-header,
+#user-settings-block .userSettingsInnerExpandable {
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    box-sizing: border-box !important;
+}
+
+/* Force hide all hr dividers in user settings block */
+#user-settings-block hr,
+#user-settings-block .inline-drawer-content hr,
+div[name="UserSettingsFirstColumn"] hr,
+div[name="UserSettingsSecondColumn"] hr,
+div[name="UserSettingsThirdColumn"] hr {
+    display: none !important;
+}
+
+/* Zero-out margin/padding on completion_prompt_manager_header to remove gap */
+.completion_prompt_manager_header,
+#completion_prompt_manager .completion_prompt_manager_header,
+#cut_m2_gen_params_drawer + #completion_prompt_manager,
+#cut_m2_gen_params_drawer + .range-block,
+#cut_m2_gen_params_drawer + div {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Feature 7 of Module 2: Default height 450px for User Persona Summary/Description textarea */
+body.cut-persona-450 #persona_description {
+    height: 450px !important;
+    min-height: 450px !important;
+}
+
+/* Feature 9 of Module 2: Custom CSS Textarea Default Height 500px */
+body.cut-css-500 #customCSS,
+#CustomCSS-block #customCSS {
+    height: 500px !important;
+    min-height: 500px !important;
+}
+
+
+/* --------------------------------------------------------------------------
+   Collapsible Extension Settings Panel Styles (Tabs & No Icons)
+   -------------------------------------------------------------------------- */
+
+#cut_container {
+    margin-bottom: 10px;
+}
+
+#cut_container .cut-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.15));
+    margin-bottom: 10px;
+    gap: 4px;
+}
+
+#cut_container .cut-tab {
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    opacity: 0.6;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+#cut_container .cut-tab:hover {
+    opacity: 0.9;
+}
+
+#cut_container .cut-tab.active {
+    opacity: 1;
+    font-weight: 600;
+    color: var(--SmartThemeEmColor, #4caf50);
+    border-bottom: 2px solid var(--SmartThemeEmColor, #4caf50);
+}
+
+#cut_container .cut-tab-content {
+    display: none;
+}
+
+#cut_container .cut-tab-content.active {
+    display: block;
+}
+
+#cut_container .cut-module-section {
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#cut_container .cut-module-title {
+    font-size: 0.9em;
+    margin-bottom: 8px;
+    color: var(--SmartThemeBodyColor);
+    opacity: 0.9;
+}
+
+#cut_container .cut-option-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+#cut_container .cut-option-item:last-child {
+    border-bottom: none;
+}
+
+#cut_container .cut-option-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    user-select: none;
+}
+
+#cut_container .cut-option-desc {
+    font-size: 0.8em;
+    opacity: 0.6;
+    margin-left: 24px;
+    margin-bottom: 6px;
+}
+
+#cut_container .cut-master-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.15));
+}
