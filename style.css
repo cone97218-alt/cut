@@ -54,6 +54,34 @@ body.cut-hide-cc-invalid [data-cc-null] {
     display: none !important;
 }
 
+/* Feature 6: 手机端输入框防乱弹/防抖动优化 (Mobile Input Anti-Jump Optimization) */
+body.cut-mobile-anti-jump {
+    overscroll-behavior-y: none !important;
+}
+
+body.cut-mobile-anti-jump #send_form,
+body.cut-mobile-anti-jump #send_textarea,
+body.cut-mobile-anti-jump .text_pole,
+body.cut-mobile-anti-jump textarea {
+    overscroll-behavior: contain !important;
+    touch-action: pan-y !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+@media (max-width: 768px) {
+    body.cut-mobile-anti-jump #send_form {
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 99 !important;
+        transform: translateZ(0) !important;
+        will-change: transform !important;
+    }
+    
+    body.cut-mobile-anti-jump #send_textarea {
+        resize: none !important;
+    }
+}
+
 
 /* --------------------------------------------------------------------------
    Module 2: 预设折叠条及人设/用户设置绝对等距样式 (Strict Equal Spacing)

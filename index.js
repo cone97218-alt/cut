@@ -10,6 +10,7 @@ const defaultSettings = {
         hideRedirectLinks: true,  // 3. 三连跳转链接 (Docs / GitHub / Discord)
         hideSliderTips: true,     // 4. 隐藏滑块手动输入提示 (#clickSlidersTips)
         hideCcInvalid: true,      // 5. 隐藏 Chat Completion 无效设置及提示
+        fixMobileInput: true,     // 6. 手机端输入框防乱弹/防抖动优化
     },
     module2: {
         foldPresets: true,        // 1. 预设界面折叠生成参数 (四字折叠条标题：预设参数)
@@ -45,6 +46,33 @@ function loadSettings() {
         extension_settings[extensionName].module2 = Object.assign({}, defaultSettings.module2);
     } else {
         extension_settings[extensionName].module2 = Object.assign({}, defaultSettings.module2, extension_settings[extensionName].module2);
+    }
+}
+
+/**
+ * Optimizes mobile input typing behavior to prevent viewport bouncing/jumping when keyboard opens or text wraps
+ */
+function applyMobileInputAntiJump() {
+    const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    const settings = extension_settings[extensionName];
+    const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+
+    document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
+
+    if (isEnabled && isMobile) {
+        // Prevent body/window scroll jumps when focusing inputs on mobile
+        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea, .text_pole, textarea, input[type="text"]', function () {
+            const chatEl = document.getElementById('chat');
+            if (chatEl) {
+                const scrollTop = chatEl.scrollTop;
+                requestAnimationFrame(() => {
+                    window.scrollTo(0, 0);
+                    chatEl.scrollTop = scrollTop;
+                });
+            }
+        });
+    } else {
+        $(document).off('focusin.cut_mobile focusout.cut_mobile');
     }
 }
 
@@ -581,8 +609,9 @@ function applySettings() {
     const body = document.body;
 
     if (!settings || !settings.enabled) {
-        body.classList.remove('cut-hide-tutorials', 'cut-hide-language-select', 'cut-hide-redirect-links', 'cut-hide-slider-tips', 'cut-hide-cc-invalid', 'cut-persona-450', 'cut-css-500');
+        body.classList.remove('cut-hide-tutorials', 'cut-hide-language-select', 'cut-hide-redirect-links', 'cut-hide-slider-tips', 'cut-hide-cc-invalid', 'cut-persona-450', 'cut-css-500', 'cut-mobile-anti-jump');
         applyModule2Settings();
+        applyMobileInputAntiJump();
         return;
     }
 
@@ -596,7 +625,9 @@ function applySettings() {
     // Module 2 Features
     body.classList.toggle('cut-persona-450', !!(settings.module2 && settings.module2.personaHeight450));
     body.classList.toggle('cut-css-500', !!(settings.module2 && settings.module2.customCssHeight500));
+    
     applyModule2Settings();
+    applyMobileInputAntiJump();
 }
 
 /**
@@ -632,7 +663,7 @@ function renderSettingsUI() {
                     <!-- 模块一 Tab 内容 -->
                     <div id="cut_tab_m1" class="cut-tab-content active">
                         <div class="cut-module-section">
-                            <div class="cut-module-title"><b>模块一：页面元素精简</b></div>
+                            <div class="cut-module-title"><b>模块一：页面元素精简与体验优化</b></div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_tutorials">
@@ -673,6 +704,14 @@ function renderSettingsUI() {
                                 </label>
                             </div>
                             <div class="cut-option-desc">隐藏高级格式化中聊天补全用不了的设置项 ([data-cc-null]) 与提示 (#advanced-formatting-cc-notice)</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m1_mobile_input">
+                                    <input type="checkbox" id="cut_m1_mobile_input">
+                                    <span>6. 手机端输入框防乱弹/防抖动优化</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">优化移动端打字与软键盘弹出时输入框与页面的跳动、抖动与页面错位</div>
                         </div>
                     </div>
 
@@ -787,6 +826,7 @@ function renderSettingsUI() {
     $('#cut_m1_redirects').prop('checked', settings.module1.hideRedirectLinks);
     $('#cut_m1_slidertips').prop('checked', settings.module1.hideSliderTips);
     $('#cut_m1_ccinvalid').prop('checked', settings.module1.hideCcInvalid);
+    $('#cut_m1_mobile_input').prop('checked', settings.module1.fixMobileInput);
 
     $('#cut_m2_fold_presets').prop('checked', settings.module2.foldPresets);
     $('#cut_m2_fold_witop').prop('checked', settings.module2.foldWorldInfoTop);
@@ -832,6 +872,12 @@ function renderSettingsUI() {
 
     $('#cut_m1_ccinvalid').off('change').on('change', function () {
         settings.module1.hideCcInvalid = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m1_mobile_input').off('change').on('change', function () {
+        settings.module1.fixMobileInput = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
