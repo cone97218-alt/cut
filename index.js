@@ -15,10 +15,10 @@ const defaultSettings = {
         foldPresets: true,        // 1. 预设界面折叠生成参数 (四字折叠条标题：预设参数)
         foldWorldInfoTop: true,   // 2. 折叠世界书顶部区域 (#wiTopBlock) (四字折叠条标题：全局世界书)
         foldPersonaSettings: true,// 3. 折叠用户设定高级参数 (四字折叠条标题：设定设置)
-        foldUiEffects: true,      // 4. 折叠用户设置：界面效果 (四字折叠条标题：界面效果)
-        foldThemeToggles: true,   // 5. 折叠用户设置：主题开关 (四字折叠条标题：主题开关)
-        foldUserAdvanced: true,   // 6. 折叠用户设置：高级设置 (四字折叠条标题：高级设置)
-        foldCustomCss: true,      // 7. 折叠用户设置：自定义样式 (四字折叠条标题：自定义样式)
+        foldCustomCss: true,      // 4. 折叠用户设置：自定义样式 (四字折叠条标题：自定义样式 - 界面效果之上)
+        foldUiEffects: true,      // 5. 折叠用户设置：界面效果 (四字折叠条标题：界面效果)
+        foldThemeToggles: true,   // 6. 折叠用户设置：主题开关 (四字折叠条标题：主题开关)
+        foldUserAdvanced: true,   // 7. 折叠用户设置：高级设置 (四字折叠条标题：高级设置)
         personaHeight450: true,   // 8. 用户设定概述输入框默认 450px (#persona_description)
         customCssHeight500: true, // 9. 自定义 CSS 编辑框默认高度 500px (#customCSS)
     },
@@ -49,19 +49,189 @@ function loadSettings() {
 }
 
 /**
+ * Right-aligns full-screen editor maximize button in the Prompt Manager entry edit form
+ */
+function applyPromptManagerMaximizeButton() {
+    const $overridesBlock = $('#completion_prompt_manager_forbid_overrides_block');
+    if ($overridesBlock.length > 0) {
+        let $actionsContainer = $overridesBlock.closest('.cut-pm-prompt-actions');
+        if ($actionsContainer.length === 0) {
+            $overridesBlock.wrap('<div class="cut-pm-prompt-actions"></div>');
+            $actionsContainer = $overridesBlock.closest('.cut-pm-prompt-actions');
+        }
+
+        if ($actionsContainer.find('.editor_maximize').length === 0) {
+            const maximizeBtnHtml = `
+                <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" 
+                   data-for="completion_prompt_manager_popup_entry_form_prompt" 
+                   title="展开全屏编辑器" 
+                   style="cursor: pointer; opacity: 0.85;"></i>
+            `;
+            $actionsContainer.append(maximizeBtnHtml);
+        }
+    }
+}
+
+/**
+ * Folds top parameters (Name, Role, Triggers, Position, Depth, Order) inside Prompt Manager Edit modal into "条目参数" 4-character drawer
+ */
+function applyPromptManagerEntryParamsFolding() {
+    const $form = $('#completion_prompt_manager_popup_edit form.completion_prompt_manager_popup_entry_form');
+    if ($form.length === 0) return;
+
+    let $drawer = $('#cut_m2_pm_entry_params_drawer');
+    const $paramRows = $form.find('> .flex-container.gap10px');
+
+    if ($paramRows.length > 0) {
+        if ($drawer.length === 0) {
+            const drawerHtml = `
+            <div id="cut_m2_pm_entry_params_drawer" class="inline-drawer wide100p">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <b>条目参数</b>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                </div>
+                <div class="inline-drawer-content" style="display: none;"></div>
+            </div>
+            `;
+            $form.prepend(drawerHtml);
+            $drawer = $('#cut_m2_pm_entry_params_drawer');
+        }
+
+        const $drawerContent = $drawer.find('>.inline-drawer-content');
+        if ($drawerContent.children().length === 0) {
+            $drawerContent.append($paramRows);
+        }
+    }
+}
+
+/**
+ * Enhances Regex Editor instances by adding full-screen maximize icons to:
+ * 1. Find Regex (查找正则表达式)
+ * 2. Replace With (替换为)
+ * 3. Trim Out (修剪掉)
+ * Ensures input boxes retain 100% full width without shrinking.
+ */
+function applyRegexEditorEnhancements() {
+    $('.regex_editor, #regex_editor_template').each(function () {
+        const $editor = $(this);
+
+        const attachFieldMaximize = ($inputEl, fieldIdPrefix) => {
+            if ($inputEl.length === 0) return;
+
+            if (!$inputEl.attr('id')) {
+                $inputEl.attr('id', fieldIdPrefix + '_' + Math.random().toString(36).substr(2, 6));
+            }
+            const fieldId = $inputEl.attr('id');
+            const $fieldContainer = $inputEl.closest('.flex1');
+            const $label = $fieldContainer.find('label').first();
+
+            if ($label.length > 0) {
+                let $labelRow = $fieldContainer.find('.cut-regex-label-row');
+                if ($labelRow.length === 0) {
+                    $label.wrap('<div class="cut-regex-label-row"></div>');
+                    $labelRow = $fieldContainer.find('.cut-regex-label-row');
+                }
+
+                if ($labelRow.find('.editor_maximize').length === 0) {
+                    $labelRow.append(`
+                        <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" 
+                           data-for="${fieldId}" 
+                           title="展开全屏编辑器" 
+                           style="cursor: pointer; opacity: 0.85;"></i>
+                    `);
+                }
+            }
+
+            // Force input / textarea and its parent wrapper to retain 100% full width
+            $inputEl.addClass('wide100p').css('width', '100%');
+            $inputEl.parent().css('width', '100%');
+        };
+
+        // 1. Find Regex (查找正则表达式)
+        attachFieldMaximize($editor.find('.find_regex'), 'cut_regex_field_find');
+
+        // 2. Replace With (替换为)
+        attachFieldMaximize($editor.find('.regex_replace_string'), 'cut_regex_field_replace');
+
+        // 3. Trim Out (修剪掉)
+        attachFieldMaximize($editor.find('.regex_trim_strings'), 'cut_regex_field_trim');
+    });
+}
+
+/**
+ * Monitors active popup modals containing maximized textareas for "替换为" (Replace With) or Regex fields
+ * and injects icon-only "一键回顶" (Scroll to Top) and "一键回底" (Scroll to Bottom) buttons.
+ */
+function applyMaximizedEditorScrollActions() {
+    $('.maximized_textarea').each(function () {
+        const $textarea = $(this);
+        const dataFor = $textarea.attr('data-for') || '';
+        
+        // Check if this textarea belongs to regex fields (especially Replace With)
+        const isRegexReplace = dataFor.includes('replace') || dataFor.includes('cut_regex_field');
+        
+        if (isRegexReplace) {
+            const $wrapper = $textarea.parent();
+            if ($wrapper.length > 0 && $wrapper.find('.cut-editor-scroll-actions').length === 0) {
+                const scrollActionsHtml = `
+                <div class="cut-editor-scroll-actions" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; margin-bottom: 6px;">
+                    <div class="cut-scroll-btn cut-scroll-top menu_button margin0" title="一键回到顶部">
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </div>
+                    <div class="cut-scroll-btn cut-scroll-bottom menu_button margin0" title="一键回到底部">
+                        <i class="fa-solid fa-arrow-down"></i>
+                    </div>
+                </div>
+                `;
+                $wrapper.prepend(scrollActionsHtml);
+
+                // Bind click events
+                $wrapper.find('.cut-scroll-top').off('click.cut').on('click.cut', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const el = $textarea[0];
+                    if (el) {
+                        el.scrollTop = 0;
+                        el.setSelectionRange(0, 0);
+                        el.focus();
+                    }
+                });
+
+                $wrapper.find('.cut-scroll-bottom').off('click.cut').on('click.cut', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const el = $textarea[0];
+                    if (el) {
+                        el.scrollTop = el.scrollHeight;
+                        el.setSelectionRange(el.value.length, el.value.length);
+                        el.focus();
+                    }
+                });
+            }
+        }
+    });
+}
+
+/**
  * Applies Module 2 folding DOM manipulations
  * Feature 1: Presets Parameter Folding ("预设参数")
  * Feature 2: World Info Top Folding ("全局世界书" - #wiTopBlock)
  * Feature 3: Persona Management Folding ("设定设置" - 插入位置, 链接, 全局设置)
- * Feature 4: User Settings -> "界面效果" (Avatars, Chat/Media Style, Notifications)
- * Feature 5: User Settings -> "主题开关" (Chat Width/Font Scale sliders + Theme Toggles)
- * Feature 6: User Settings -> "高级设置" (FULL COLLECTION of Column 2 AND Column 3, excluding CustomCSS)
- * Feature 7: User Settings -> "自定义样式" (#CustomCSS-block -> "自定义样式" right below "界面效果")
+ * Feature 4: User Settings -> "自定义样式" (#CustomCSS-block -> "自定义样式" 4-character drawer ABOVE "界面效果", maximize icon on right)
+ * Feature 5: User Settings -> "界面效果" (Avatars, Chat/Media Style, Notifications)
+ * Feature 6: User Settings -> "主题开关" (Chat Width/Font Scale sliders + Theme Toggles)
+ * Feature 7: User Settings -> "高级设置" (FULL COLLECTION of Column 2 AND Column 3, excluding CustomCSS)
  */
 function applyModule2Settings() {
     const settings = extension_settings[extensionName];
     const isMasterEnabled = settings && settings.enabled;
     const isModule2Enabled = isMasterEnabled && settings.module2;
+
+    // Prompt Manager & Regex Editor Enhancements
+    applyPromptManagerMaximizeButton();
+    applyPromptManagerEntryParamsFolding();
+    applyRegexEditorEnhancements();
+    applyMaximizedEditorScrollActions();
 
     // --- Feature 1: Fold Presets (#ai_response_configuration) ---
     const shouldFoldPresets = isModule2Enabled && settings.module2.foldPresets;
@@ -191,12 +361,62 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 4: User Settings -> "界面效果" (AvatarAndChatDisplay) ---
+    // --- Feature 4: User Settings -> "自定义样式" (#CustomCSS-block -> "自定义样式" 4-character drawer ABOVE "界面效果") ---
+    const shouldFoldCustomCss = isModule2Enabled && settings.module2.foldCustomCss;
+    const $customCssBlock = $('#CustomCSS-block');
+    const $uiPresetsBlock = $('#UI-presets-block');
+    const $col1 = $('div[name="UserSettingsFirstColumn"]');
+
+    if ($customCssBlock.length > 0) {
+        let $cssDrawer = $('#cut_m2_custom_css_drawer');
+
+        if (shouldFoldCustomCss) {
+            if ($cssDrawer.length === 0) {
+                const cssDrawerHtml = `
+                <div id="cut_m2_custom_css_drawer" class="inline-drawer wide100p flexFlowColumn">
+                    <div class="inline-drawer-toggle inline-drawer-header userSettingsInnerExpandable">
+                        <b>自定义样式</b>
+                        <div class="cut-css-header-actions">
+                            <i class="editor_maximize fa-solid fa-maximize right_menu_button text_pole margin0" data-for="customCSS" title="展开全屏编辑器" style="cursor: pointer;"></i>
+                            <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down margin0"></div>
+                        </div>
+                    </div>
+                    <div class="inline-drawer-content" style="display: none;"></div>
+                </div>
+                `;
+                if ($uiPresetsBlock.length > 0) {
+                    $uiPresetsBlock.after(cssDrawerHtml);
+                } else if ($col1.length > 0) {
+                    $col1.prepend(cssDrawerHtml);
+                }
+                $cssDrawer = $('#cut_m2_custom_css_drawer');
+            } else {
+                if ($uiPresetsBlock.length > 0) {
+                    $uiPresetsBlock.after($cssDrawer);
+                }
+            }
+
+            const $cssDrawerContent = $cssDrawer.find('>.inline-drawer-content');
+            if ($cssDrawerContent.find('#CustomCSS-block').length === 0) {
+                $cssDrawerContent.append($customCssBlock);
+            }
+            $cssDrawer.show();
+        } else {
+            if ($cssDrawer.length > 0) {
+                const $col2 = $('div[name="UserSettingsSecondColumn"]');
+                if ($cssDrawer.find('#CustomCSS-block').length > 0 && $col2.length > 0) {
+                    $col2.append($customCssBlock);
+                }
+                $cssDrawer.hide();
+            }
+        }
+    }
+
+    // --- Feature 5: User Settings -> "界面效果" (AvatarAndChatDisplay right below "自定义样式") ---
     const shouldFoldUiEffects = isModule2Enabled && settings.module2.foldUiEffects;
     const $avatarChatDisplay = $('div[name="AvatarAndChatDisplay"]');
     if ($avatarChatDisplay.length > 0) {
         let $effectsDrawer = $('#cut_m2_ui_effects_drawer');
-        const $uiPresetsBlock = $('#UI-presets-block');
 
         if (shouldFoldUiEffects) {
             if ($effectsDrawer.length === 0) {
@@ -209,12 +429,20 @@ function applyModule2Settings() {
                     <div class="inline-drawer-content" style="display: none;"></div>
                 </div>
                 `;
-                if ($uiPresetsBlock.length > 0) {
+                const $cssDrawer = $('#cut_m2_custom_css_drawer');
+                if ($cssDrawer.length > 0) {
+                    $cssDrawer.after(effectsDrawerHtml);
+                } else if ($uiPresetsBlock.length > 0) {
                     $uiPresetsBlock.after(effectsDrawerHtml);
-                } else {
-                    $avatarChatDisplay.before(effectsDrawerHtml);
+                } else if ($col1.length > 0) {
+                    $col1.prepend(effectsDrawerHtml);
                 }
                 $effectsDrawer = $('#cut_m2_ui_effects_drawer');
+            } else {
+                const $cssDrawer = $('#cut_m2_custom_css_drawer');
+                if ($cssDrawer.length > 0) {
+                    $cssDrawer.after($effectsDrawer);
+                }
             }
 
             const $effectsDrawerContent = $effectsDrawer.find('>.inline-drawer-content');
@@ -234,14 +462,13 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 5: User Settings -> "主题开关" (FontBlurChatWidthBlock + themeToggles) ---
+    // --- Feature 6: User Settings -> "主题开关" (FontBlurChatWidthBlock + themeToggles) ---
     const shouldFoldThemeToggles = isModule2Enabled && settings.module2.foldThemeToggles;
     const $fontBlurBlock = $('div[name="FontBlurChatWidthBlock"]');
     const $themeToggles = $('div[name="themeToggles"]');
 
     if ($fontBlurBlock.length > 0 || $themeToggles.length > 0) {
         let $togglesDrawer = $('#cut_m2_theme_toggles_drawer');
-        const $col1 = $('div[name="UserSettingsFirstColumn"]');
 
         if (shouldFoldThemeToggles) {
             if ($togglesDrawer.length === 0) {
@@ -279,9 +506,8 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 6: User Settings -> "高级设置" (Fold Column 2 AND Column 3 into Column 1 right after Theme Toggles) ---
+    // --- Feature 7: User Settings -> "高级设置" (Fold Column 2 AND Column 3 into Column 1 right after Theme Toggles) ---
     const shouldFoldUserAdvanced = isModule2Enabled && settings.module2.foldUserAdvanced;
-    const $col1 = $('div[name="UserSettingsFirstColumn"]');
     const $col2 = $('div[name="UserSettingsSecondColumn"]');
     const $col3 = $('div[name="UserSettingsThirdColumn"]');
 
@@ -342,55 +568,6 @@ function applyModule2Settings() {
                     }
                 }
                 $advDrawer.hide();
-            }
-        }
-    }
-
-    // --- Feature 7: User Settings -> "自定义样式" (#CustomCSS-block -> "自定义样式" right below "界面效果") ---
-    const shouldFoldCustomCss = isModule2Enabled && settings.module2.foldCustomCss;
-    const $customCssBlock = $('#CustomCSS-block');
-
-    if ($customCssBlock.length > 0) {
-        let $cssDrawer = $('#cut_m2_custom_css_drawer');
-        const $effectsDrawer = $('#cut_m2_ui_effects_drawer');
-        const $col2 = $('div[name="UserSettingsSecondColumn"]');
-
-        if (shouldFoldCustomCss) {
-            if ($cssDrawer.length === 0) {
-                const cssDrawerHtml = `
-                <div id="cut_m2_custom_css_drawer" class="inline-drawer wide100p flexFlowColumn">
-                    <div class="inline-drawer-toggle inline-drawer-header userSettingsInnerExpandable">
-                        <b>自定义样式</b>
-                        <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
-                    </div>
-                    <div class="inline-drawer-content" style="display: none;"></div>
-                </div>
-                `;
-                if ($effectsDrawer.length > 0) {
-                    $effectsDrawer.after(cssDrawerHtml);
-                } else if ($col1.length > 0) {
-                    $col1.prepend(cssDrawerHtml);
-                } else if ($col2.length > 0) {
-                    $col2.append(cssDrawerHtml);
-                }
-                $cssDrawer = $('#cut_m2_custom_css_drawer');
-            } else {
-                if ($effectsDrawer.length > 0) {
-                    $effectsDrawer.after($cssDrawer);
-                }
-            }
-
-            const $cssDrawerContent = $cssDrawer.find('>.inline-drawer-content');
-            if ($cssDrawerContent.find('#CustomCSS-block').length === 0) {
-                $cssDrawerContent.append($customCssBlock);
-            }
-            $cssDrawer.show();
-        } else {
-            if ($cssDrawer.length > 0) {
-                if ($cssDrawer.find('#CustomCSS-block').length > 0 && $col2.length > 0) {
-                    $col2.append($customCssBlock);
-                }
-                $cssDrawer.hide();
             }
         }
     }
@@ -529,20 +706,20 @@ function renderSettingsUI() {
                             <div class="cut-option-desc">将用户设定面板中的“插入位置”、“链接”及其小标题与“全局设置”收纳进“设定设置”四字折叠条</div>
 
                             <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_fold_custom_css">
+                                    <input type="checkbox" id="cut_m2_fold_custom_css">
+                                    <span>4. 折叠用户设置：自定义样式</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">将自定义 CSS 框独立收纳进“界面效果”正上方的“自定义样式”四字折叠条（右侧内置全屏按钮）</div>
+
+                            <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_ui_effects">
                                     <input type="checkbox" id="cut_m2_fold_ui_effects">
-                                    <span>4. 折叠用户设置：界面效果</span>
+                                    <span>5. 折叠用户设置：界面效果</span>
                                 </label>
                             </div>
                             <div class="cut-option-desc">将用户设置面板中的头像/聊天/媒体/通知选项收纳进“界面效果”四字折叠条</div>
-
-                            <div class="cut-option-item">
-                                <label class="cut-option-label" for="cut_m2_fold_custom_css">
-                                    <input type="checkbox" id="cut_m2_fold_custom_css">
-                                    <span>5. 折叠用户设置：自定义样式</span>
-                                </label>
-                            </div>
-                            <div class="cut-option-desc">将自定义 CSS 框从高级设置中独立出来，收纳进“界面效果”正下方的“自定义样式”四字折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_theme_toggles">
@@ -614,8 +791,8 @@ function renderSettingsUI() {
     $('#cut_m2_fold_presets').prop('checked', settings.module2.foldPresets);
     $('#cut_m2_fold_witop').prop('checked', settings.module2.foldWorldInfoTop);
     $('#cut_m2_fold_persona').prop('checked', settings.module2.foldPersonaSettings);
-    $('#cut_m2_fold_ui_effects').prop('checked', settings.module2.foldUiEffects);
     $('#cut_m2_fold_custom_css').prop('checked', settings.module2.foldCustomCss);
+    $('#cut_m2_fold_ui_effects').prop('checked', settings.module2.foldUiEffects);
     $('#cut_m2_fold_theme_toggles').prop('checked', settings.module2.foldThemeToggles);
     $('#cut_m2_fold_user_advanced').prop('checked', settings.module2.foldUserAdvanced);
     $('#cut_m2_persona_450').prop('checked', settings.module2.personaHeight450);
@@ -677,14 +854,14 @@ function renderSettingsUI() {
         saveSettingsDebounced();
     });
 
-    $('#cut_m2_fold_ui_effects').off('change').on('change', function () {
-        settings.module2.foldUiEffects = $(this).prop('checked');
+    $('#cut_m2_fold_custom_css').off('change').on('change', function () {
+        settings.module2.foldCustomCss = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
 
-    $('#cut_m2_fold_custom_css').off('change').on('change', function () {
-        settings.module2.foldCustomCss = $(this).prop('checked');
+    $('#cut_m2_fold_ui_effects').off('change').on('change', function () {
+        settings.module2.foldUiEffects = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
@@ -723,6 +900,11 @@ jQuery(async () => {
 
     // Check & apply UI drawer rendering and module 2 DOM folding
     const checkDrawerInterval = setInterval(() => {
+        applyPromptManagerMaximizeButton();
+        applyPromptManagerEntryParamsFolding();
+        applyRegexEditorEnhancements();
+        applyMaximizedEditorScrollActions();
+
         if ($('#extensions_settings').length > 0 || $('#rm_extensions_block').length > 0) {
             renderSettingsUI();
         }

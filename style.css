@@ -77,8 +77,8 @@ body.cut-hide-cc-invalid [data-cc-null] {
 #cut_m2_gen_params_drawer,
 #cut_m2_wi_top_drawer,
 #cut_m2_persona_drawer,
-#cut_m2_ui_effects_drawer,
 #cut_m2_custom_css_drawer,
+#cut_m2_ui_effects_drawer,
 #cut_m2_theme_toggles_drawer,
 #cut_m2_user_advanced_drawer {
     margin-top: 2px !important;
@@ -97,6 +97,126 @@ body.cut-hide-cc-invalid [data-cc-null] {
     padding-left: 6px !important;
     padding-right: 6px !important;
     box-sizing: border-box !important;
+}
+
+/* Hide redundant inner h4 title inside Custom CSS drawer */
+#cut_m2_custom_css_drawer #CustomCSS-block > h4 {
+    display: none !important;
+}
+
+/* Style for custom CSS header actions and right-aligned maximize icon without background color */
+#cut_m2_custom_css_drawer .inline-drawer-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+#cut_m2_custom_css_drawer .cut-css-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+/* Ensure FontAwesome font family is explicitly enforced on editor_maximize icons */
+.editor_maximize {
+    font-family: "Font Awesome 6 Free", "FontAwesome" !important;
+    font-weight: 900 !important;
+}
+
+#cut_m2_custom_css_drawer .editor_maximize {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-size: 0.95em;
+    opacity: 0.8;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#cut_m2_custom_css_drawer .editor_maximize:hover {
+    background: transparent !important;
+    background-color: transparent !important;
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Regex Editor Maximize Icons Styling */
+.regex_editor .cut-regex-label-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 2px !important;
+    width: 100% !important;
+}
+
+.regex_editor .editor_maximize {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-size: 0.95em;
+    opacity: 0.85;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.regex_editor .editor_maximize:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Scroll-to-Top and Scroll-to-Bottom Toolbar (Icon Only) in Fullscreen Textarea Popup */
+.cut-editor-scroll-actions .cut-scroll-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.cut-editor-scroll-actions .cut-scroll-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: var(--SmartThemeEmColor, #4caf50);
+    color: var(--SmartThemeEmColor, #4caf50);
+    transform: scale(1.05);
+}
+
+/* Prompt Manager Edit Modal Maximize Button & Actions Right-Alignment */
+.cut-pm-prompt-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+.cut-pm-prompt-actions .editor_maximize {
+    cursor: pointer;
+    opacity: 0.85;
+    font-size: 1.05em;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.cut-pm-prompt-actions .editor_maximize:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* Prompt Manager Entry Edit Form Collapsible Drawer ("条目参数") */
+#cut_m2_pm_entry_params_drawer {
+    margin-bottom: 10px !important;
+}
+
+#cut_m2_pm_entry_params_drawer .inline-drawer-content {
+    padding: 8px 4px 0 4px !important;
 }
 
 /* Force hide all hr dividers in user settings block */
