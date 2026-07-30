@@ -54,7 +54,8 @@ body.cut-hide-cc-invalid [data-cc-null] {
     display: none !important;
 }
 
-/* Feature 6: 手机端输入框防乱弹/防抖动优化 (Mobile Input Anti-Jump Optimization) */
+/* Feature 6: 手机端输入框防乱弹/防抖动与防自动放大深度优化 (Comprehensive Mobile Anti-Jump) */
+html.cut-mobile-anti-jump,
 body.cut-mobile-anti-jump {
     overscroll-behavior-y: none !important;
 }
@@ -64,16 +65,52 @@ body.cut-mobile-anti-jump #send_textarea,
 body.cut-mobile-anti-jump .text_pole,
 body.cut-mobile-anti-jump textarea {
     overscroll-behavior: contain !important;
-    touch-action: pan-y !important;
+    touch-action: manipulation !important;
     -webkit-overflow-scrolling: touch !important;
 }
 
+/* Feature 7: 手机端键盘剪贴板粘贴长文本卡顿优化 (Mobile Soft Keyboard Paste Optimization) */
+.cut-pasting-active {
+    will-change: contents !important;
+    contain: content !important;
+}
+
 @media (max-width: 768px) {
+    /* 1. Prevent iOS Safari & Android WebViews auto-zoom on input focus by enforcing >=16px font-size */
+    body.cut-mobile-anti-jump textarea,
+    body.cut-mobile-anti-jump input[type="text"],
+    body.cut-mobile-anti-jump input[type="search"],
+    body.cut-mobile-anti-jump input[type="number"],
+    body.cut-mobile-anti-jump .text_pole,
+    body.cut-mobile-anti-jump #send_textarea {
+        font-size: 16px !important;
+        font-size: 1rem !important;
+    }
+
+    /* 2. Lock body viewport to prevent elastic rubber-band page jumps */
+    html.cut-mobile-anti-jump,
+    body.cut-mobile-anti-jump {
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
+        height: 100dvh !important;
+        overflow: hidden !important;
+    }
+
+    body.cut-mobile-anti-jump #sheath {
+        height: 100% !important;
+        height: 100dvh !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    /* 3. Lock bottom chat bar position with GPU hardware acceleration */
     body.cut-mobile-anti-jump #send_form {
         position: sticky !important;
         bottom: 0 !important;
         z-index: 99 !important;
         transform: translateZ(0) !important;
+        -webkit-transform: translateZ(0) !important;
         will-change: transform !important;
     }
     

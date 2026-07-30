@@ -10,7 +10,8 @@ const defaultSettings = {
         hideRedirectLinks: true,  // 3. 三连跳转链接 (Docs / GitHub / Discord)
         hideSliderTips: true,     // 4. 隐藏滑块手动输入提示 (#clickSlidersTips)
         hideCcInvalid: true,      // 5. 隐藏 Chat Completion 无效设置及提示
-        fixMobileInput: true,     // 6. 手机端输入框防乱弹/防抖动优化
+        fixMobileInput: true,     // 6. 手机端输入框防乱弹/防抖动/防自动放大深度优化
+        optimizeMobilePaste: true,// 7. 手机端键盘剪贴板粘贴长文本卡顿优化
     },
     module2: {
         foldPresets: true,        // 1. 预设界面折叠生成参数 (四字折叠条标题：预设参数)
@@ -49,6 +50,8 @@ function loadSettings() {
     }
 }
 
+let isMobileAntiJumpInitialized = false;
+
 /**
  * Optimizes mobile input typing behavior to prevent viewport bouncing/jumping when keyboard opens or text wraps
  */
@@ -57,22 +60,78 @@ function applyMobileInputAntiJump() {
     const settings = extension_settings[extensionName];
     const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
 
+    document.documentElement.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
     document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
 
     if (isEnabled && isMobile) {
-        // Prevent body/window scroll jumps when focusing inputs on mobile
-        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea, .text_pole, textarea, input[type="text"]', function () {
-            const chatEl = document.getElementById('chat');
-            if (chatEl) {
-                const scrollTop = chatEl.scrollTop;
-                requestAnimationFrame(() => {
-                    window.scrollTo(0, 0);
-                    chatEl.scrollTop = scrollTop;
+        if (!isMobileAntiJumpInitialized) {
+            isMobileAntiJumpInitialized = true;
+
+            // Prevent window/body scroll jumps when focusing inputs on mobile
+            $(document).on('focusin.cut_mobile', '#send_textarea, .text_pole, textarea, input[type="text"]', function () {
+                const chatEl = document.getElementById('chat');
+                if (chatEl) {
+                    const scrollTop = chatEl.scrollTop;
+                    requestAnimationFrame(() => {
+                        window.scrollTo(0, 0);
+                        chatEl.scrollTop = scrollTop;
+                    });
+                }
+            });
+
+            // Smooth visualViewport adjustment without page bounce
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', () => {
+                    const chatEl = document.getElementById('chat');
+                    if (chatEl && document.activeElement && (document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'INPUT')) {
+                        window.scrollTo(0, 0);
+                    }
                 });
             }
-        });
+        }
+    }
+}
+
+let isMobilePasteOptimized = false;
+
+/**
+ * Optimizes mobile soft keyboard paste chip performance for large text insertions.
+ * Prevents UI freezing/lagging when inserting long text via mobile keyboard paste button.
+ */
+function applyMobilePasteOptimization() {
+    const settings = extension_settings[extensionName];
+    const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.optimizeMobilePaste;
+
+    if (isEnabled) {
+        if (!isMobilePasteOptimized) {
+            isMobilePasteOptimized = true;
+
+            // Intercept beforeinput / input for large text insertions via soft keyboard paste chip
+            $(document).on('beforeinput.cut_paste', '#send_textarea, .text_pole, textarea', function (e) {
+                const origEvent = e.originalEvent;
+                if (!origEvent) return;
+
+                const isPasteType = origEvent.inputType === 'insertFromPaste' || origEvent.inputType === 'insertReplacementText' || origEvent.inputType === 'insertFromYank';
+                const insertedData = origEvent.data || (origEvent.dataTransfer ? origEvent.dataTransfer.getData('text') : null);
+
+                // If inserting large text chunk (>80 chars) via keyboard paste chip or clipboard
+                if (isPasteType || (insertedData && insertedData.length > 80)) {
+                    const el = e.target;
+                    
+                    // Temporarily isolate layout rendering during insertion frame to prevent main thread lag
+                    el.classList.add('cut-pasting-active');
+                    
+                    requestAnimationFrame(() => {
+                        el.classList.remove('cut-pasting-active');
+                    });
+                }
+            });
+        }
     } else {
-        $(document).off('focusin.cut_mobile focusout.cut_mobile');
+        if (isMobilePasteOptimized) {
+            isMobilePasteOptimized = false;
+            $(document).off('beforeinput.cut_paste');
+        }
     }
 }
 
@@ -612,6 +671,7 @@ function applySettings() {
         body.classList.remove('cut-hide-tutorials', 'cut-hide-language-select', 'cut-hide-redirect-links', 'cut-hide-slider-tips', 'cut-hide-cc-invalid', 'cut-persona-450', 'cut-css-500', 'cut-mobile-anti-jump');
         applyModule2Settings();
         applyMobileInputAntiJump();
+        applyMobilePasteOptimization();
         return;
     }
 
@@ -628,6 +688,7 @@ function applySettings() {
     
     applyModule2Settings();
     applyMobileInputAntiJump();
+    applyMobilePasteOptimization();
 }
 
 /**
@@ -712,6 +773,14 @@ function renderSettingsUI() {
                                 </label>
                             </div>
                             <div class="cut-option-desc">优化移动端打字与软键盘弹出时输入框与页面的跳动、抖动与页面错位</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m1_mobile_paste">
+                                    <input type="checkbox" id="cut_m1_mobile_paste">
+                                    <span>7. 手机端键盘剪贴板粘贴长文本卡顿优化</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">优化使用输入法自带剪贴板/粘贴按键插入长文本时的卡顿与画面冻结</div>
                         </div>
                     </div>
 
@@ -827,6 +896,7 @@ function renderSettingsUI() {
     $('#cut_m1_slidertips').prop('checked', settings.module1.hideSliderTips);
     $('#cut_m1_ccinvalid').prop('checked', settings.module1.hideCcInvalid);
     $('#cut_m1_mobile_input').prop('checked', settings.module1.fixMobileInput);
+    $('#cut_m1_mobile_paste').prop('checked', settings.module1.optimizeMobilePaste);
 
     $('#cut_m2_fold_presets').prop('checked', settings.module2.foldPresets);
     $('#cut_m2_fold_witop').prop('checked', settings.module2.foldWorldInfoTop);
@@ -878,6 +948,12 @@ function renderSettingsUI() {
 
     $('#cut_m1_mobile_input').off('change').on('change', function () {
         settings.module1.fixMobileInput = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m1_mobile_paste').off('change').on('change', function () {
+        settings.module1.optimizeMobilePaste = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
