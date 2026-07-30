@@ -130,7 +130,6 @@ function initPastePerformanceFix() {
             flushPasteBuffer();
         }
 
-        // Single large paste >= 3000 chars
         if (text.length >= 3000) {
             if (!pasteBatching) {
                 pasteBatching = true;
@@ -146,7 +145,6 @@ function initPastePerformanceFix() {
             return;
         }
 
-        // Multi-chunk rapid paste detection
         const now = Date.now();
         pasteBurstTimestamps.push(now);
         if (text.length > 3) pasteHasSubstantialText = true;
@@ -467,13 +465,13 @@ function applyUserAvatarsFolding() {
             }
 
             const $drawerContent = $drawer.find('>.inline-drawer-content');
-            const $itemsToFold = $topBar.add($avatarBlock);
-            if ($itemsToFold.length > 0) {
+            if ($drawerContent.find('#user_avatar_block').length === 0) {
+                const $itemsToFold = $topBar.add($avatarBlock);
                 $drawerContent.append($itemsToFold);
             }
             $drawer.show();
         } else {
-            if ($drawer.length > 0) {
+            if ($drawer.length > 0 && $drawer.is(':visible')) {
                 const $itemsToRestore = $drawer.find('.flex-container.marginBot10.alignitemscenter, #user_avatar_block');
                 if ($itemsToRestore.length > 0) {
                     $leftCol.prepend($itemsToRestore);
@@ -526,8 +524,8 @@ function applyFirstMessageFolding() {
             }
 
             const $drawerContent = $drawer.find('>.inline-drawer-content');
-            const $itemsToFold = $textarea.add($tokenCounter);
-            if ($itemsToFold.length > 0) {
+            if ($drawerContent.find('#firstmessage_textarea').length === 0) {
+                const $itemsToFold = $textarea.add($tokenCounter);
                 $drawerContent.append($itemsToFold);
             }
             if ($firstMsgDiv.length > 0) {
@@ -535,7 +533,7 @@ function applyFirstMessageFolding() {
             }
             $drawer.show();
         } else {
-            if ($drawer.length > 0) {
+            if ($drawer.length > 0 && $drawer.is(':visible')) {
                 const $altBtn = $drawer.find('.open_alternate_greetings');
                 if ($altBtn.length > 0 && $firstMsgDiv.length > 0) {
                     $firstMsgDiv.append($altBtn);
@@ -593,17 +591,19 @@ function applyModule2Settings() {
             }
 
             const $drawerContent = $drawer.find('>.inline-drawer-content');
-            const $presetItems = $('#common-gen-settings-block, #respective-ranges-and-temps, #advanced-ai-config-block, #kobold_api-settings, #novel_api-settings');
-            if ($presetItems.length > 0) {
-                $drawerContent.append($presetItems);
+            if ($drawerContent.find('#common-gen-settings-block').length === 0) {
+                const $presetItems = $('#common-gen-settings-block, #respective-ranges-and-temps, #advanced-ai-config-block, #kobold_api-settings, #novel_api-settings');
+                if ($presetItems.length > 0) {
+                    $drawerContent.append($presetItems);
+                }
             }
             if ($promptManager.length > 0) {
                 $drawer.after($promptManager);
             }
             $drawer.show();
         } else {
-            if ($drawer.length > 0) {
-                const $presetItems = $drawer.find('#common-gen-settings-block, #respective-ranges-and-temps, #advanced-ai-config-block, #kobold_api-settings, #novel_api-settings');
+            if ($drawer.length > 0 && $drawer.is(':visible')) {
+                const $presetItems = $drawer.find('>.inline-drawer-content').children();
                 if ($presetItems.length > 0) {
                     $presetsBlock.after($presetItems);
                 }
@@ -644,7 +644,7 @@ function applyModule2Settings() {
             }
             $wiDrawer.show();
         } else {
-            if ($wiDrawer.length > 0) {
+            if ($wiDrawer.length > 0 && $wiDrawer.is(':visible')) {
                 if ($wiDrawer.find('#wiTopBlock').length > 0) {
                     $wiHolder.prepend($wiTopBlock);
                 }
@@ -682,14 +682,17 @@ function applyModule2Settings() {
             }
 
             const $personaDrawerContent = $personaDrawer.find('>.inline-drawer-content');
-            if ($personaElements.length > 0) {
-                $personaDrawerContent.append($personaElements);
+            if ($personaDrawerContent.find('#persona_depth_position_settings, .persona_management_description_position_container').length === 0) {
+                if ($personaElements.length > 0) {
+                    $personaDrawerContent.append($personaElements);
+                }
             }
             $personaDrawer.show();
         } else {
-            if ($personaDrawer.length > 0) {
-                if ($personaElements.length > 0) {
-                    $personaRightCol.append($personaElements);
+            if ($personaDrawer.length > 0 && $personaDrawer.is(':visible')) {
+                const $itemsToRestore = $personaDrawer.find('>.inline-drawer-content').children();
+                if ($itemsToRestore.length > 0) {
+                    $personaRightCol.append($itemsToRestore);
                 }
                 $personaDrawer.hide();
             }
@@ -737,7 +740,7 @@ function applyModule2Settings() {
             }
             $cssDrawer.show();
         } else {
-            if ($cssDrawer.length > 0) {
+            if ($cssDrawer.length > 0 && $cssDrawer.is(':visible')) {
                 const $col2 = $('div[name="UserSettingsSecondColumn"]');
                 if ($cssDrawer.find('#CustomCSS-block').length > 0 && $col2.length > 0) {
                     $col2.append($customCssBlock);
@@ -786,7 +789,7 @@ function applyModule2Settings() {
             }
             $effectsDrawer.show();
         } else {
-            if ($effectsDrawer.length > 0) {
+            if ($effectsDrawer.length > 0 && $effectsDrawer.is(':visible')) {
                 if ($effectsDrawer.find('div[name="AvatarAndChatDisplay"]').length > 0) {
                     if ($uiPresetsBlock.length > 0) {
                         $uiPresetsBlock.after($avatarChatDisplay);
@@ -824,13 +827,15 @@ function applyModule2Settings() {
 
             const $togglesDrawerContent = $togglesDrawer.find('>.inline-drawer-content');
             $col1.find('hr').hide();
-            const $itemsToAppend = $fontBlurBlock.add($themeToggles);
-            if ($itemsToAppend.length > 0) {
-                $togglesDrawerContent.append($itemsToAppend);
+            if ($togglesDrawerContent.find('div[name="FontBlurChatWidthBlock"], div[name="themeToggles"]').length === 0) {
+                const $itemsToAppend = $fontBlurBlock.add($themeToggles);
+                if ($itemsToAppend.length > 0) {
+                    $togglesDrawerContent.append($itemsToAppend);
+                }
             }
             $togglesDrawer.show();
         } else {
-            if ($togglesDrawer.length > 0) {
+            if ($togglesDrawer.length > 0 && $togglesDrawer.is(':visible')) {
                 const $itemsToRestore = $togglesDrawer.find('div[name="FontBlurChatWidthBlock"], div[name="themeToggles"]');
                 if ($itemsToRestore.length > 0 && $col1.length > 0) {
                     $col1.append($itemsToRestore);
@@ -877,12 +882,14 @@ function applyModule2Settings() {
 
             const $advDrawerContent = $advDrawer.find('>.inline-drawer-content');
             
-            const $col2Children = $col2.children().not('#cut_m2_user_advanced_drawer, #CustomCSS-block, #cut_m2_custom_css_drawer');
-            const $col3Children = $col3.children().not('#cut_m2_user_advanced_drawer, #CustomCSS-block, #cut_m2_custom_css_drawer');
-            
-            const $allAdvItems = $col2Children.add($col3Children);
-            if ($allAdvItems.length > 0) {
-                $advDrawerContent.append($allAdvItems);
+            if ($advDrawerContent.children().length === 0) {
+                const $col2Children = $col2.children().not('#cut_m2_user_advanced_drawer, #CustomCSS-block, #cut_m2_custom_css_drawer');
+                const $col3Children = $col3.children().not('#cut_m2_user_advanced_drawer, #CustomCSS-block, #cut_m2_custom_css_drawer');
+                
+                const $allAdvItems = $col2Children.add($col3Children);
+                if ($allAdvItems.length > 0) {
+                    $advDrawerContent.append($allAdvItems);
+                }
             }
 
             if ($col3.length > 0) {
@@ -891,7 +898,7 @@ function applyModule2Settings() {
 
             $advDrawer.show();
         } else {
-            if ($advDrawer.length > 0) {
+            if ($advDrawer.length > 0 && $advDrawer.is(':visible')) {
                 const $advItemsToRestore = $advDrawer.find('>.inline-drawer-content').children();
                 if ($advItemsToRestore.length > 0) {
                     if ($col2.length > 0) {
@@ -943,10 +950,10 @@ function applySettings() {
     document.documentElement.style.setProperty('--cut-css-height', `${cHeight}px`);
     document.documentElement.style.setProperty('--cut-avatar-height', `${aHeight}px`);
 
-    body.classList.toggle('cut-persona-height-active', !!settings.module2.enablePersonaHeight);
-    body.classList.toggle('cut-char-desc-height-active', !!settings.module2.enableCharDescHeight);
-    body.classList.toggle('cut-css-height-active', !!settings.module2.enableCssHeight);
-    body.classList.toggle('cut-avatar-height-active', !!settings.module2.enableAvatarHeight);
+    body.classList.toggle('cut-persona-height-active', !!(settings.module2 && settings.module2.enablePersonaHeight));
+    body.classList.toggle('cut-char-desc-height-active', !!(settings.module2 && settings.module2.enableCharDescHeight));
+    body.classList.toggle('cut-css-height-active', !!(settings.module2 && settings.module2.enableCssHeight));
+    body.classList.toggle('cut-avatar-height-active', !!(settings.module2 && settings.module2.enableAvatarHeight));
 
     applyModule2Settings();
     applyMobileInputAntiJump();

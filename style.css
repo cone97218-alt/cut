@@ -167,16 +167,22 @@ body.cut-char-desc-height-active #description_textarea {
 
 /* 9. 自定义样式高度 [CSS] */
 body.cut-css-height-active #customCSS,
-#CustomCSS-block #customCSS {
+body.cut-css-height-active #CustomCSS-block #customCSS {
     height: var(--cut-css-height, 500px) !important;
     min-height: var(--cut-css-height, 500px) !important;
 }
 
-/* 10. 用户选择高度 (#user_avatar_block) [CSS] */
-body.cut-avatar-height-active #user_avatar_block,
-#user_avatar_block {
+/* 10. 用户选择高度 (#user_avatar_block) [CSS] (开启状态) */
+body.cut-avatar-height-active #user_avatar_block {
     max-height: var(--cut-avatar-height, 300px) !important;
     overflow: hidden auto !important;
+}
+
+/* 用户选择高度禁用状态：强行清除最大高度与内部滚动条，完全自然展开 */
+body:not(.cut-avatar-height-active) #user_avatar_block,
+body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_block {
+    max-height: none !important;
+    overflow: visible !important;
 }
 
 /* 折叠条绝对等距样式 */
