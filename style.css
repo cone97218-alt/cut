@@ -1,12 +1,12 @@
 /* ==========================================================================
-   UI 精简瘦身 (UI Trimmer) Extension - Stylesheet
+   页面精简 (UI Trimmer) Extension - Stylesheet
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   Module 1: 页面精简 Hiding Rules
+   模块一：页面精简 CSS Hiding Rules [CSS 操控]
    -------------------------------------------------------------------------- */
 
-/* Feature 1: 隐藏问号图标引导及教程类 (Hide Question Mark Tutorials & Help Icons) */
+/* 1. 隐藏教程图标 [CSS] */
 body.cut-hide-tutorials .note-link-span,
 body.cut-hide-tutorials .notes-link,
 body.cut-hide-tutorials a.topRightInset,
@@ -22,7 +22,7 @@ body.cut-hide-tutorials .st-guided-tour-step {
     display: none !important;
 }
 
-/* Feature 2: 隐藏选择语言设置框 (Hide Language Selector Block) */
+/* 2. 隐藏语言选择 [CSS] */
 body.cut-hide-language-select #UI-language-block,
 body.cut-hide-language-select #onboarding-UI-language-block,
 body.cut-hide-language-select select#ui_language_select,
@@ -30,7 +30,7 @@ body.cut-hide-language-select select#onboarding_ui_language_select {
     display: none !important;
 }
 
-/* Feature 3: 隐藏三连跳转链接 (Hide Docs / GitHub / Discord Redirect Links) */
+/* 3. 隐藏快捷链接 [CSS] */
 body.cut-hide-redirect-links .welcomeShortcuts a[href*="docs.sillytavern.app"],
 body.cut-hide-redirect-links .welcomeShortcuts a[href*="github.com"],
 body.cut-hide-redirect-links .welcomeShortcuts a[href*="discord.gg"],
@@ -43,19 +43,18 @@ body.cut-hide-redirect-links .welcomeHeader a[href*="discord.gg"] {
     display: none !important;
 }
 
-/* Feature 4: 隐藏滑块手动输入提示 (Hide Slider Manual Input Tip) */
+/* 4. 隐藏滑块提示 [CSS] */
 body.cut-hide-slider-tips #clickSlidersTips {
     display: none !important;
 }
 
-/* Feature 5: 隐藏高级格式化 Chat Completion 无效设置 (CC invalid settings & notice) */
+/* 5. 隐藏无效格式 [CSS] */
 body.cut-hide-cc-invalid #advanced-formatting-cc-notice,
 body.cut-hide-cc-invalid [data-cc-null] {
     display: none !important;
 }
 
-/* Feature 6: 手机端输入框防乱弹/防抖动与防自动放大深度优化 (Comprehensive Mobile Anti-Jump) */
-html.cut-mobile-anti-jump,
+/* 6. 手机打字防弹 [JS + CSS] */
 body.cut-mobile-anti-jump {
     overscroll-behavior-y: none !important;
 }
@@ -65,52 +64,25 @@ body.cut-mobile-anti-jump #send_textarea,
 body.cut-mobile-anti-jump .text_pole,
 body.cut-mobile-anti-jump textarea {
     overscroll-behavior: contain !important;
-    touch-action: manipulation !important;
+    touch-action: pan-y !important;
     -webkit-overflow-scrolling: touch !important;
 }
 
-/* Feature 7: 手机端键盘剪贴板粘贴长文本卡顿优化 (Mobile Soft Keyboard Paste Optimization) */
-.cut-pasting-active {
-    will-change: contents !important;
-    contain: content !important;
+body.cut-mobile-anti-jump #form_sheld:has(#send_textarea:focus, #send_textarea:not(:placeholder-shown)),
+body.cut-mobile-anti-jump #send_form:has(#send_textarea:focus, #send_textarea:not(:placeholder-shown)) {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 99 !important;
+    transform: translateZ(0) !important;
+    will-change: transform !important;
 }
 
 @media (max-width: 768px) {
-    /* 1. Prevent iOS Safari & Android WebViews auto-zoom on input focus by enforcing >=16px font-size */
-    body.cut-mobile-anti-jump textarea,
-    body.cut-mobile-anti-jump input[type="text"],
-    body.cut-mobile-anti-jump input[type="search"],
-    body.cut-mobile-anti-jump input[type="number"],
-    body.cut-mobile-anti-jump .text_pole,
-    body.cut-mobile-anti-jump #send_textarea {
-        font-size: 16px !important;
-        font-size: 1rem !important;
-    }
-
-    /* 2. Lock body viewport to prevent elastic rubber-band page jumps */
-    html.cut-mobile-anti-jump,
-    body.cut-mobile-anti-jump {
-        position: fixed !important;
-        width: 100% !important;
-        height: 100% !important;
-        height: 100dvh !important;
-        overflow: hidden !important;
-    }
-
-    body.cut-mobile-anti-jump #sheath {
-        height: 100% !important;
-        height: 100dvh !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-
-    /* 3. Lock bottom chat bar position with GPU hardware acceleration */
     body.cut-mobile-anti-jump #send_form {
         position: sticky !important;
         bottom: 0 !important;
         z-index: 99 !important;
         transform: translateZ(0) !important;
-        -webkit-transform: translateZ(0) !important;
         will-change: transform !important;
     }
     
@@ -121,10 +93,93 @@ body.cut-mobile-anti-jump textarea {
 
 
 /* --------------------------------------------------------------------------
-   Module 2: 预设折叠条及人设/用户设置绝对等距样式 (Strict Equal Spacing)
+   模块二：界面收纳与高度动态配置 [JS / CSS 结合]
    -------------------------------------------------------------------------- */
 
-/* 1. Reset columns container flex gaps & margins */
+/* 人设列表折叠条 ("人设列表") [JS] */
+#cut_m2_user_avatars_drawer {
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
+}
+
+#cut_m2_user_avatars_drawer .inline-drawer-header {
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+}
+
+#cut_m2_user_avatars_drawer .inline-drawer-content {
+    padding-top: 4px !important;
+    padding-bottom: 0px !important;
+    margin-bottom: 0px !important;
+}
+
+#cut_m2_user_avatars_drawer .marginBot10 {
+    margin-bottom: 4px !important;
+}
+
+.persona_management_left_column {
+    margin-bottom: 0px !important;
+    padding-bottom: 0px !important;
+}
+
+/* 角色开场折叠条 ("角色开场") [JS] */
+#cut_m2_first_msg_drawer {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+}
+
+#cut_m2_first_msg_drawer .inline-drawer-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+#cut_m2_first_msg_drawer .editor_maximize {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-size: 0.95em;
+    opacity: 0.85;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#cut_m2_first_msg_drawer .editor_maximize:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* 8. 人设概述高度 [CSS] */
+body.cut-persona-height-active #persona_description {
+    height: var(--cut-persona-height, 450px) !important;
+    min-height: var(--cut-persona-height, 450px) !important;
+}
+
+/* 角色描述高度 (#description_textarea) [CSS] */
+body.cut-char-desc-height-active #description_textarea {
+    height: var(--cut-char-desc-height, 450px) !important;
+    min-height: var(--cut-char-desc-height, 450px) !important;
+}
+
+/* 9. 自定义样式高度 [CSS] */
+body.cut-css-height-active #customCSS,
+#CustomCSS-block #customCSS {
+    height: var(--cut-css-height, 500px) !important;
+    min-height: var(--cut-css-height, 500px) !important;
+}
+
+/* 10. 用户选择高度 (#user_avatar_block) [CSS] */
+body.cut-avatar-height-active #user_avatar_block,
+#user_avatar_block {
+    max-height: var(--cut-avatar-height, 300px) !important;
+    overflow: hidden auto !important;
+}
+
+/* 折叠条绝对等距样式 */
 #user-settings-block-content,
 #user-settings-block div[name="UserSettingsFirstColumn"],
 #user-settings-block div[name="UserSettingsSecondColumn"],
@@ -136,7 +191,6 @@ body.cut-mobile-anti-jump textarea {
     padding-bottom: 0px !important;
 }
 
-/* 2. Target every drawer block in user settings strictly */
 #user-settings-block .inline-drawer,
 #theme_colors,
 #cut_m2_gen_params_drawer,
@@ -152,7 +206,6 @@ body.cut-mobile-anti-jump textarea {
     padding-bottom: 0px !important;
 }
 
-/* 3. Target every drawer header bar strictly so vertical height & margins are 100% identical */
 #user-settings-block .inline-drawer-header,
 #user-settings-block .userSettingsInnerExpandable {
     margin-top: 0px !important;
@@ -164,12 +217,10 @@ body.cut-mobile-anti-jump textarea {
     box-sizing: border-box !important;
 }
 
-/* Hide redundant inner h4 title inside Custom CSS drawer */
 #cut_m2_custom_css_drawer #CustomCSS-block > h4 {
     display: none !important;
 }
 
-/* Style for custom CSS header actions and right-aligned maximize icon without background color */
 #cut_m2_custom_css_drawer .inline-drawer-header {
     display: flex !important;
     align-items: center !important;
@@ -183,7 +234,6 @@ body.cut-mobile-anti-jump textarea {
     margin-left: auto;
 }
 
-/* Ensure FontAwesome font family is explicitly enforced on editor_maximize icons */
 .editor_maximize {
     font-family: "Font Awesome 6 Free", "FontAwesome" !important;
     font-weight: 900 !important;
@@ -208,7 +258,6 @@ body.cut-mobile-anti-jump textarea {
     transform: scale(1.1);
 }
 
-/* Regex Editor Maximize Icons Styling */
 .regex_editor .cut-regex-label-row {
     display: flex !important;
     align-items: center !important;
@@ -234,7 +283,6 @@ body.cut-mobile-anti-jump textarea {
     transform: scale(1.1);
 }
 
-/* Scroll-to-Top and Scroll-to-Bottom Toolbar (Icon Only) in Fullscreen Textarea Popup */
 .cut-editor-scroll-actions .cut-scroll-btn {
     display: flex;
     align-items: center;
@@ -255,7 +303,6 @@ body.cut-mobile-anti-jump textarea {
     transform: scale(1.05);
 }
 
-/* Prompt Manager Edit Modal Maximize Button & Actions Right-Alignment */
 .cut-pm-prompt-actions {
     display: flex;
     align-items: center;
@@ -275,7 +322,6 @@ body.cut-mobile-anti-jump textarea {
     transform: scale(1.15);
 }
 
-/* Prompt Manager Entry Edit Form Collapsible Drawer ("条目参数") */
 #cut_m2_pm_entry_params_drawer {
     margin-bottom: 10px !important;
 }
@@ -284,7 +330,6 @@ body.cut-mobile-anti-jump textarea {
     padding: 8px 4px 0 4px !important;
 }
 
-/* Force hide all hr dividers in user settings block */
 #user-settings-block hr,
 #user-settings-block .inline-drawer-content hr,
 div[name="UserSettingsFirstColumn"] hr,
@@ -293,7 +338,6 @@ div[name="UserSettingsThirdColumn"] hr {
     display: none !important;
 }
 
-/* Zero-out margin/padding on completion_prompt_manager_header to remove gap */
 .completion_prompt_manager_header,
 #completion_prompt_manager .completion_prompt_manager_header,
 #cut_m2_gen_params_drawer + #completion_prompt_manager,
@@ -303,22 +347,9 @@ div[name="UserSettingsThirdColumn"] hr {
     padding-top: 0 !important;
 }
 
-/* Feature 7 of Module 2: Default height 450px for User Persona Summary/Description textarea */
-body.cut-persona-450 #persona_description {
-    height: 450px !important;
-    min-height: 450px !important;
-}
-
-/* Feature 9 of Module 2: Custom CSS Textarea Default Height 500px */
-body.cut-css-500 #customCSS,
-#CustomCSS-block #customCSS {
-    height: 500px !important;
-    min-height: 500px !important;
-}
-
 
 /* --------------------------------------------------------------------------
-   Collapsible Extension Settings Panel Styles (Tabs & No Icons)
+   拓展设置面板样式
    -------------------------------------------------------------------------- */
 
 #cut_container {
@@ -395,6 +426,27 @@ body.cut-css-500 #customCSS,
     cursor: pointer;
     font-size: 0.9em;
     user-select: none;
+}
+
+#cut_container .cut-option-tag {
+    font-size: 0.75em;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: normal;
+    opacity: 0.7;
+    margin-left: 4px;
+}
+
+#cut_container .cut-option-tag.tag-css {
+    background: rgba(33, 150, 243, 0.2);
+    color: #64b5f6;
+    border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+#cut_container .cut-option-tag.tag-js {
+    background: rgba(255, 152, 0, 0.2);
+    color: #ffb74d;
+    border: 1px solid rgba(255, 152, 0, 0.3);
 }
 
 #cut_container .cut-option-desc {

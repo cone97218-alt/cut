@@ -1,9 +1,10 @@
 {
-    "display_name": "ui精简",
-    "loading_order": 10,
-    "js": "index.js",
-    "css": "style.css",
-    "author": "Antigravity",
-    "version": "1.0.0",
-    "description": "精简页面无用/易误触元素（1.问号教程图标 2.语言选择框 3.三连跳转链接）。支持模块化扩展。"
+  "display_name": "页面精简",
+  "loading_order": 100,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Antigravity",
+  "version": "1.4.0"
 }

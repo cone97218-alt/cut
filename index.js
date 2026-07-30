@@ -5,26 +5,236 @@ const extensionName = 'cut';
 const defaultSettings = {
     enabled: true,
     module1: {
-        hideTutorials: true,      // 1. 问号图标引导及教程类
-        hideLanguageSelect: true, // 2. 语言选择设置框
-        hideRedirectLinks: true,  // 3. 三连跳转链接 (Docs / GitHub / Discord)
-        hideSliderTips: true,     // 4. 隐藏滑块手动输入提示 (#clickSlidersTips)
-        hideCcInvalid: true,      // 5. 隐藏 Chat Completion 无效设置及提示
-        fixMobileInput: true,     // 6. 手机端输入框防乱弹/防抖动/防自动放大深度优化
-        optimizeMobilePaste: true,// 7. 手机端键盘剪贴板粘贴长文本卡顿优化
+        hideTutorials: true,      // 1. 隐藏教程图标 [CSS]
+        hideLanguageSelect: true, // 2. 隐藏语言选择 [CSS]
+        hideRedirectLinks: true,  // 3. 隐藏快捷链接 [CSS]
+        hideSliderTips: true,     // 4. 隐藏滑块提示 [CSS]
+        hideCcInvalid: true,      // 5. 隐藏无效格式 [CSS]
+        fixMobileInput: true,     // 6. 手机打字防弹 [JS]
     },
     module2: {
-        foldPresets: true,        // 1. 预设界面折叠生成参数 (四字折叠条标题：预设参数)
-        foldWorldInfoTop: true,   // 2. 折叠世界书顶部区域 (#wiTopBlock) (四字折叠条标题：全局世界书)
-        foldPersonaSettings: true,// 3. 折叠用户设定高级参数 (四字折叠条标题：设定设置)
-        foldCustomCss: true,      // 4. 折叠用户设置：自定义样式 (四字折叠条标题：自定义样式 - 界面效果之上)
-        foldUiEffects: true,      // 5. 折叠用户设置：界面效果 (四字折叠条标题：界面效果)
-        foldThemeToggles: true,   // 6. 折叠用户设置：主题开关 (四字折叠条标题：主题开关)
-        foldUserAdvanced: true,   // 7. 折叠用户设置：高级设置 (四字折叠条标题：高级设置)
-        personaHeight450: true,   // 8. 用户设定概述输入框默认 450px (#persona_description)
-        customCssHeight500: true, // 9. 自定义 CSS 编辑框默认高度 500px (#customCSS)
+        foldPresets: true,        // 1. 折叠预设参数 [JS]
+        foldWorldInfoTop: true,   // 2. 折叠全局世界 [JS]
+        foldUserAvatars: true,    // 3. 折叠人设列表 ("人设列表" 4-character drawer) [JS]
+        foldPersonaSettings: true,// 4. 折叠设定设置 [JS]
+        foldFirstMessage: true,   // 5. 折叠角色开场 ("角色开场" 4-character drawer) [JS]
+        foldCustomCss: true,      // 6. 折叠自定义样式 [JS]
+        foldUiEffects: true,      // 7. 折叠界面效果 [JS]
+        foldThemeToggles: true,   // 8. 折叠主题开关 [JS]
+        foldUserAdvanced: true,   // 9. 折叠高级设置 [JS]
+        enablePersonaHeight: true,// 10. 人设概述高度 [CSS]
+        personaHeight: 450,       // 人设概述高度 (px)
+        enableCharDescHeight: true,// 11. 角色描述高度 (#description_textarea) [CSS]
+        charDescHeight: 450,      // 角色描述高度 (px)
+        enableCssHeight: true,    // 12. 自定义样式高度 [CSS]
+        customCssHeight: 500,     // 自定义样式高度 (px)
+        enableAvatarHeight: true, // 13. 用户选择高度 [CSS]
+        userAvatarHeight: 300,    // 用户选择高度 (#user_avatar_block) (px)
     },
 };
+
+// Global state for auto-focus interception (Inspired by SillyTavern-Layout & Mobile-Focus-Interceptor)
+const originalFocus = HTMLElement.prototype.focus;
+let lastDirectInputInteraction = 0;
+let lastTabInteraction = 0;
+let isAutoFocusInterceptorBound = false;
+
+// Paste Performance Batching State (Inspired by akira59851/Mobile-Focus-Interceptor)
+let isPasteFixInstalled = false;
+let pasteBurstTimestamps = [];
+let pasteHasSubstantialText = false;
+let pasteTextParts = [];
+let pasteStartPos = null;
+let pasteTarget = null;
+let pasteBatching = false;
+let pasteFlushTimer = null;
+let pasteCurrentTimeout = 300;
+let pasteRafId = null;
+
+function isEditableInput(el) {
+    return el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable);
+}
+
+/**
+ * Merges and flushes accumulated paste chunks in a single rAF frame with visibility suppression to prevent UI freeze
+ */
+function flushPasteBuffer() {
+    pasteBatching = false;
+    clearTimeout(pasteFlushTimer);
+    pasteFlushTimer = null;
+    pasteBurstTimestamps = [];
+    pasteHasSubstantialText = false;
+    pasteCurrentTimeout = 300;
+
+    if (pasteTextParts.length === 0 || pasteStartPos === null || !pasteTarget) {
+        pasteTextParts = [];
+        pasteStartPos = null;
+        pasteTarget = null;
+        return;
+    }
+
+    const target = pasteTarget;
+    const accumulatedText = pasteTextParts.join('');
+    const start = pasteStartPos;
+    const before = target.value ? target.value.substring(0, start) : '';
+    const after = target.value ? target.value.substring(target.selectionEnd || start) : '';
+
+    pasteTextParts = [];
+    pasteStartPos = null;
+    pasteTarget = null;
+
+    target.style.visibility = 'hidden';
+    target.value = before + accumulatedText + after;
+    const newPos = start + accumulatedText.length;
+    if (typeof target.setSelectionRange === 'function') {
+        target.setSelectionRange(newPos, newPos);
+    }
+
+    pasteRafId = requestAnimationFrame(() => {
+        pasteRafId = null;
+        target.style.visibility = '';
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+}
+
+/**
+ * Initializes mobile large text and rapid burst paste performance optimization
+ */
+function initPastePerformanceFix() {
+    if (isPasteFixInstalled) return;
+    isPasteFixInstalled = true;
+
+    document.addEventListener('beforeinput', (e) => {
+        const settings = extension_settings[extensionName];
+        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+        if (!isEnabled) return;
+
+        const target = e.target;
+        if (!isEditableInput(target) || e.isComposing) return;
+
+        const textInsertTypes = ['insertText', 'insertFromPaste', 'insertCompositionText', 'insertReplacementText'];
+        if (textInsertTypes.indexOf(e.inputType) === -1) return;
+
+        let text = '';
+        if (e.dataTransfer && e.dataTransfer.getData('text/plain')) {
+            text = e.dataTransfer.getData('text/plain');
+        } else if (typeof e.data === 'string') {
+            text = e.data;
+        } else if (e.data !== null && e.data !== undefined) {
+            text = String(e.data);
+        }
+
+        if (!text) return;
+
+        if (pasteBatching && pasteTarget && pasteTarget !== target) {
+            flushPasteBuffer();
+        }
+
+        // Single large paste >= 3000 chars
+        if (text.length >= 3000) {
+            if (!pasteBatching) {
+                pasteBatching = true;
+                pasteTarget = target;
+                pasteStartPos = target.selectionStart || 0;
+                pasteTextParts = [];
+            }
+            pasteTextParts.push(text);
+            e.preventDefault();
+
+            clearTimeout(pasteFlushTimer);
+            pasteFlushTimer = setTimeout(flushPasteBuffer, 100);
+            return;
+        }
+
+        // Multi-chunk rapid paste detection
+        const now = Date.now();
+        pasteBurstTimestamps.push(now);
+        if (text.length > 3) pasteHasSubstantialText = true;
+
+        while (pasteBurstTimestamps.length > 0 && now - pasteBurstTimestamps[0] > 200) {
+            pasteBurstTimestamps.shift();
+        }
+
+        if (pasteBurstTimestamps.length >= 3 && pasteHasSubstantialText) {
+            if (!pasteBatching) {
+                pasteBatching = true;
+                pasteTarget = target;
+                pasteStartPos = target.selectionStart || 0;
+                pasteTextParts = [];
+                pasteCurrentTimeout = 300;
+            }
+
+            pasteTextParts.push(text);
+            e.preventDefault();
+
+            pasteCurrentTimeout = Math.min(pasteCurrentTimeout * 2, 2000);
+            clearTimeout(pasteFlushTimer);
+            pasteFlushTimer = setTimeout(flushPasteBuffer, pasteCurrentTimeout);
+        } else {
+            if (pasteBatching) {
+                flushPasteBuffer();
+            }
+        }
+    }, true);
+}
+
+/**
+ * Initializes the dual interception algorithm for auto-focus protection
+ */
+function initAutoFocusInterceptor() {
+    if (isAutoFocusInterceptorBound) return;
+    isAutoFocusInterceptorBound = true;
+
+    const updateInteractionTime = (e) => {
+        if (e.target && e.target.closest && e.target.closest('input, textarea, label, button, .menu_button')) {
+            lastDirectInputInteraction = Date.now();
+        }
+    };
+
+    document.addEventListener('pointerdown', updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('touchstart', updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('touchend', updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('mousedown', updateInteractionTime, { capture: true, passive: true });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            lastTabInteraction = Date.now();
+        }
+    }, { capture: true });
+
+    HTMLElement.prototype.focus = function (options) {
+        const settings = extension_settings[extensionName];
+        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+
+        if (isEnabled) {
+            const tag = this.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 1000) || (Date.now() - lastTabInteraction < 1000);
+                const isAlreadyFocused = (document.activeElement === this);
+
+                if (!isUserInitiated && !isAlreadyFocused) {
+                    return;
+                }
+            }
+        }
+        return originalFocus.call(this, options);
+    };
+
+    document.addEventListener('focus', (e) => {
+        const settings = extension_settings[extensionName];
+        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+
+        if (isEnabled) {
+            const tag = e.target?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 1000) || (Date.now() - lastTabInteraction < 1000);
+                if (!isUserInitiated) {
+                    e.target.blur();
+                }
+            }
+        }
+    }, true);
+}
 
 /**
  * Ensures settings object is populated with default values
@@ -34,7 +244,6 @@ function loadSettings() {
         extension_settings[extensionName] = {};
     }
 
-    // Merge default settings
     extension_settings[extensionName] = Object.assign({}, defaultSettings, extension_settings[extensionName]);
     
     if (!extension_settings[extensionName].module1) {
@@ -50,93 +259,34 @@ function loadSettings() {
     }
 }
 
-let isMobileAntiJumpInitialized = false;
-
 /**
- * Optimizes mobile input typing behavior to prevent viewport bouncing/jumping when keyboard opens or text wraps
+ * Optimizes mobile input typing behavior
  */
 function applyMobileInputAntiJump() {
     const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     const settings = extension_settings[extensionName];
     const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
 
-    document.documentElement.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
     document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
 
     if (isEnabled && isMobile) {
-        if (!isMobileAntiJumpInitialized) {
-            isMobileAntiJumpInitialized = true;
-
-            // Prevent window/body scroll jumps when focusing inputs on mobile
-            $(document).on('focusin.cut_mobile', '#send_textarea, .text_pole, textarea, input[type="text"]', function () {
-                const chatEl = document.getElementById('chat');
-                if (chatEl) {
-                    const scrollTop = chatEl.scrollTop;
-                    requestAnimationFrame(() => {
-                        window.scrollTo(0, 0);
-                        chatEl.scrollTop = scrollTop;
-                    });
-                }
-            });
-
-            // Smooth visualViewport adjustment without page bounce
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', () => {
-                    const chatEl = document.getElementById('chat');
-                    if (chatEl && document.activeElement && (document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'INPUT')) {
-                        window.scrollTo(0, 0);
-                    }
+        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea, .text_pole, textarea, input[type="text"]', function () {
+            const chatEl = document.getElementById('chat');
+            if (chatEl) {
+                const scrollTop = chatEl.scrollTop;
+                requestAnimationFrame(() => {
+                    window.scrollTo(0, 0);
+                    chatEl.scrollTop = scrollTop;
                 });
             }
-        }
-    }
-}
-
-let isMobilePasteOptimized = false;
-
-/**
- * Optimizes mobile soft keyboard paste chip performance for large text insertions.
- * Prevents UI freezing/lagging when inserting long text via mobile keyboard paste button.
- */
-function applyMobilePasteOptimization() {
-    const settings = extension_settings[extensionName];
-    const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.optimizeMobilePaste;
-
-    if (isEnabled) {
-        if (!isMobilePasteOptimized) {
-            isMobilePasteOptimized = true;
-
-            // Intercept beforeinput / input for large text insertions via soft keyboard paste chip
-            $(document).on('beforeinput.cut_paste', '#send_textarea, .text_pole, textarea', function (e) {
-                const origEvent = e.originalEvent;
-                if (!origEvent) return;
-
-                const isPasteType = origEvent.inputType === 'insertFromPaste' || origEvent.inputType === 'insertReplacementText' || origEvent.inputType === 'insertFromYank';
-                const insertedData = origEvent.data || (origEvent.dataTransfer ? origEvent.dataTransfer.getData('text') : null);
-
-                // If inserting large text chunk (>80 chars) via keyboard paste chip or clipboard
-                if (isPasteType || (insertedData && insertedData.length > 80)) {
-                    const el = e.target;
-                    
-                    // Temporarily isolate layout rendering during insertion frame to prevent main thread lag
-                    el.classList.add('cut-pasting-active');
-                    
-                    requestAnimationFrame(() => {
-                        el.classList.remove('cut-pasting-active');
-                    });
-                }
-            });
-        }
+        });
     } else {
-        if (isMobilePasteOptimized) {
-            isMobilePasteOptimized = false;
-            $(document).off('beforeinput.cut_paste');
-        }
+        $(document).off('focusin.cut_mobile focusout.cut_mobile');
     }
 }
 
 /**
- * Right-aligns full-screen editor maximize button in the Prompt Manager entry edit form
+ * Right-aligns full-screen editor maximize button in Prompt Manager entry edit form
  */
 function applyPromptManagerMaximizeButton() {
     const $overridesBlock = $('#completion_prompt_manager_forbid_overrides_block');
@@ -160,7 +310,7 @@ function applyPromptManagerMaximizeButton() {
 }
 
 /**
- * Folds top parameters (Name, Role, Triggers, Position, Depth, Order) inside Prompt Manager Edit modal into "条目参数" 4-character drawer
+ * Folds top parameters in Prompt Manager Edit modal into "条目参数" 4-character drawer
  */
 function applyPromptManagerEntryParamsFolding() {
     const $form = $('#completion_prompt_manager_popup_edit form.completion_prompt_manager_popup_entry_form');
@@ -192,11 +342,7 @@ function applyPromptManagerEntryParamsFolding() {
 }
 
 /**
- * Enhances Regex Editor instances by adding full-screen maximize icons to:
- * 1. Find Regex (查找正则表达式)
- * 2. Replace With (替换为)
- * 3. Trim Out (修剪掉)
- * Ensures input boxes retain 100% full width without shrinking.
+ * Enhances Regex Editor instances by adding full-screen maximize icons
  */
 function applyRegexEditorEnhancements() {
     $('.regex_editor, #regex_editor_template').each(function () {
@@ -229,32 +375,23 @@ function applyRegexEditorEnhancements() {
                 }
             }
 
-            // Force input / textarea and its parent wrapper to retain 100% full width
             $inputEl.addClass('wide100p').css('width', '100%');
             $inputEl.parent().css('width', '100%');
         };
 
-        // 1. Find Regex (查找正则表达式)
         attachFieldMaximize($editor.find('.find_regex'), 'cut_regex_field_find');
-
-        // 2. Replace With (替换为)
         attachFieldMaximize($editor.find('.regex_replace_string'), 'cut_regex_field_replace');
-
-        // 3. Trim Out (修剪掉)
         attachFieldMaximize($editor.find('.regex_trim_strings'), 'cut_regex_field_trim');
     });
 }
 
 /**
- * Monitors active popup modals containing maximized textareas for "替换为" (Replace With) or Regex fields
- * and injects icon-only "一键回顶" (Scroll to Top) and "一键回底" (Scroll to Bottom) buttons.
+ * Injects "一键回顶" & "一键回底" scroll buttons in fullscreen replace textareas
  */
 function applyMaximizedEditorScrollActions() {
     $('.maximized_textarea').each(function () {
         const $textarea = $(this);
         const dataFor = $textarea.attr('data-for') || '';
-        
-        // Check if this textarea belongs to regex fields (especially Replace With)
         const isRegexReplace = dataFor.includes('replace') || dataFor.includes('cut_regex_field');
         
         if (isRegexReplace) {
@@ -272,7 +409,6 @@ function applyMaximizedEditorScrollActions() {
                 `;
                 $wrapper.prepend(scrollActionsHtml);
 
-                // Bind click events
                 $wrapper.find('.cut-scroll-top').off('click.cut').on('click.cut', function (e) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -300,27 +436,139 @@ function applyMaximizedEditorScrollActions() {
 }
 
 /**
- * Applies Module 2 folding DOM manipulations
- * Feature 1: Presets Parameter Folding ("预设参数")
- * Feature 2: World Info Top Folding ("全局世界书" - #wiTopBlock)
- * Feature 3: Persona Management Folding ("设定设置" - 插入位置, 链接, 全局设置)
- * Feature 4: User Settings -> "自定义样式" (#CustomCSS-block -> "自定义样式" 4-character drawer ABOVE "界面效果", maximize icon on right)
- * Feature 5: User Settings -> "界面效果" (Avatars, Chat/Media Style, Notifications)
- * Feature 6: User Settings -> "主题开关" (Chat Width/Font Scale sliders + Theme Toggles)
- * Feature 7: User Settings -> "高级设置" (FULL COLLECTION of Column 2 AND Column 3, excluding CustomCSS)
+ * Folds User Persona Avatar Gallery (#user_avatar_block & search bar) into "人设列表" 4-character drawer
+ */
+function applyUserAvatarsFolding() {
+    const settings = extension_settings[extensionName];
+    const isMasterEnabled = settings && settings.enabled;
+    const isModule2Enabled = isMasterEnabled && settings.module2;
+    const shouldFoldAvatars = isModule2Enabled && settings.module2.foldUserAvatars;
+
+    const $leftCol = $('.persona_management_left_column');
+    const $avatarBlock = $('#user_avatar_block');
+    const $topBar = $leftCol.find('.flex-container.marginBot10.alignitemscenter');
+
+    if ($leftCol.length > 0 && $avatarBlock.length > 0) {
+        let $drawer = $('#cut_m2_user_avatars_drawer');
+
+        if (shouldFoldAvatars) {
+            if ($drawer.length === 0) {
+                const drawerHtml = `
+                <div id="cut_m2_user_avatars_drawer" class="inline-drawer wide100p">
+                    <div class="inline-drawer-toggle inline-drawer-header">
+                        <b>人设列表</b>
+                        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                    </div>
+                    <div class="inline-drawer-content" style="display: none; padding-top: 4px;"></div>
+                </div>
+                `;
+                $leftCol.prepend(drawerHtml);
+                $drawer = $('#cut_m2_user_avatars_drawer');
+            }
+
+            const $drawerContent = $drawer.find('>.inline-drawer-content');
+            const $itemsToFold = $topBar.add($avatarBlock);
+            if ($itemsToFold.length > 0) {
+                $drawerContent.append($itemsToFold);
+            }
+            $drawer.show();
+        } else {
+            if ($drawer.length > 0) {
+                const $itemsToRestore = $drawer.find('.flex-container.marginBot10.alignitemscenter, #user_avatar_block');
+                if ($itemsToRestore.length > 0) {
+                    $leftCol.prepend($itemsToRestore);
+                }
+                $drawer.hide();
+            }
+        }
+    }
+}
+
+/**
+ * Folds Character First Message / Greetings textarea (#firstmessage_textarea) into "角色开场" 4-character drawer
+ */
+function applyFirstMessageFolding() {
+    const settings = extension_settings[extensionName];
+    const isMasterEnabled = settings && settings.enabled;
+    const isModule2Enabled = isMasterEnabled && settings.module2;
+    const shouldFoldFirstMsg = isModule2Enabled && settings.module2.foldFirstMessage;
+
+    const $wrapper = $('#firstMessageWrapper');
+    const $firstMsgDiv = $('#first_message_div');
+    const $textarea = $('#firstmessage_textarea');
+    const $tokenCounter = $wrapper.find('.extension_token_counter');
+
+    if ($wrapper.length > 0 && $textarea.length > 0) {
+        let $drawer = $('#cut_m2_first_msg_drawer');
+
+        if (shouldFoldFirstMsg) {
+            if ($drawer.length === 0) {
+                const $altBtn = $firstMsgDiv.find('.open_alternate_greetings');
+
+                const drawerHtml = `
+                <div id="cut_m2_first_msg_drawer" class="inline-drawer wide100p flexFlowColumn">
+                    <div class="inline-drawer-toggle inline-drawer-header userSettingsInnerExpandable">
+                        <b>角色开场</b>
+                        <div class="cut-first-msg-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
+                            <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" data-for="firstmessage_textarea" title="展开全屏编辑器" style="cursor: pointer; opacity: 0.85;"></i>
+                            <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down margin0"></div>
+                        </div>
+                    </div>
+                    <div class="inline-drawer-content" style="display: none; padding-top: 6px;"></div>
+                </div>
+                `;
+                $wrapper.prepend(drawerHtml);
+                $drawer = $('#cut_m2_first_msg_drawer');
+
+                if ($altBtn.length > 0) {
+                    $drawer.find('.cut-first-msg-actions').prepend($altBtn);
+                }
+            }
+
+            const $drawerContent = $drawer.find('>.inline-drawer-content');
+            const $itemsToFold = $textarea.add($tokenCounter);
+            if ($itemsToFold.length > 0) {
+                $drawerContent.append($itemsToFold);
+            }
+            if ($firstMsgDiv.length > 0) {
+                $firstMsgDiv.hide();
+            }
+            $drawer.show();
+        } else {
+            if ($drawer.length > 0) {
+                const $altBtn = $drawer.find('.open_alternate_greetings');
+                if ($altBtn.length > 0 && $firstMsgDiv.length > 0) {
+                    $firstMsgDiv.append($altBtn);
+                }
+                const $itemsToRestore = $drawer.find('#firstmessage_textarea, .extension_token_counter');
+                if ($itemsToRestore.length > 0) {
+                    $wrapper.append($itemsToRestore);
+                }
+                if ($firstMsgDiv.length > 0) {
+                    $firstMsgDiv.show();
+                }
+                $drawer.hide();
+            }
+        }
+    }
+}
+
+/**
+ * Applies Module 2 folding DOM manipulations [JS 操控]
  */
 function applyModule2Settings() {
     const settings = extension_settings[extensionName];
     const isMasterEnabled = settings && settings.enabled;
     const isModule2Enabled = isMasterEnabled && settings.module2;
 
-    // Prompt Manager & Regex Editor Enhancements
     applyPromptManagerMaximizeButton();
     applyPromptManagerEntryParamsFolding();
     applyRegexEditorEnhancements();
     applyMaximizedEditorScrollActions();
+    applyUserAvatarsFolding();
+    applyFirstMessageFolding();
 
-    // --- Feature 1: Fold Presets (#ai_response_configuration) ---
+    // Feature 1: Fold Presets (#ai_response_configuration) [JS]
     const shouldFoldPresets = isModule2Enabled && settings.module2.foldPresets;
     const $aiConfig = $('#ai_response_configuration');
     const $presetsBlock = $('#respective-presets-block');
@@ -367,7 +615,7 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 2: Fold World Info Top (#wiTopBlock) ---
+    // Feature 2: Fold World Info Top (#wiTopBlock) [JS]
     const shouldFoldWITop = isModule2Enabled && settings.module2.foldWorldInfoTop;
     const $wiHolder = $('#wi-holder');
     const $wiTopBlock = $('#wiTopBlock');
@@ -405,7 +653,7 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 3: Fold Persona Management Settings (插入位置, 链接, 全局设置 -> "设定设置" 4-character drawer) ---
+    // Feature 4: Fold Persona Management Settings ("设定设置") [JS]
     const shouldFoldPersona = isModule2Enabled && settings.module2.foldPersonaSettings;
     const $personaRightCol = $('.persona_management_right_column');
 
@@ -448,7 +696,7 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 4: User Settings -> "自定义样式" (#CustomCSS-block -> "自定义样式" 4-character drawer ABOVE "界面效果") ---
+    // Feature 5: Fold Custom CSS ("自定义样式") [JS]
     const shouldFoldCustomCss = isModule2Enabled && settings.module2.foldCustomCss;
     const $customCssBlock = $('#CustomCSS-block');
     const $uiPresetsBlock = $('#UI-presets-block');
@@ -499,7 +747,7 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 5: User Settings -> "界面效果" (AvatarAndChatDisplay right below "自定义样式") ---
+    // Feature 6: Fold UI Effects ("界面效果") [JS]
     const shouldFoldUiEffects = isModule2Enabled && settings.module2.foldUiEffects;
     const $avatarChatDisplay = $('div[name="AvatarAndChatDisplay"]');
     if ($avatarChatDisplay.length > 0) {
@@ -549,7 +797,7 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 6: User Settings -> "主题开关" (FontBlurChatWidthBlock + themeToggles) ---
+    // Feature 7: Fold Theme Toggles ("主题开关") [JS]
     const shouldFoldThemeToggles = isModule2Enabled && settings.module2.foldThemeToggles;
     const $fontBlurBlock = $('div[name="FontBlurChatWidthBlock"]');
     const $themeToggles = $('div[name="themeToggles"]');
@@ -593,7 +841,7 @@ function applyModule2Settings() {
         }
     }
 
-    // --- Feature 7: User Settings -> "高级设置" (Fold Column 2 AND Column 3 into Column 1 right after Theme Toggles) ---
+    // Feature 8: Fold User Advanced ("高级设置") [JS]
     const shouldFoldUserAdvanced = isModule2Enabled && settings.module2.foldUserAdvanced;
     const $col2 = $('div[name="UserSettingsSecondColumn"]');
     const $col3 = $('div[name="UserSettingsThirdColumn"]');
@@ -629,7 +877,6 @@ function applyModule2Settings() {
 
             const $advDrawerContent = $advDrawer.find('>.inline-drawer-content');
             
-            // Select all items except our drawers and #CustomCSS-block
             const $col2Children = $col2.children().not('#cut_m2_user_advanced_drawer, #CustomCSS-block, #cut_m2_custom_css_drawer');
             const $col3Children = $col3.children().not('#cut_m2_user_advanced_drawer, #CustomCSS-block, #cut_m2_custom_css_drawer');
             
@@ -661,34 +908,48 @@ function applyModule2Settings() {
 }
 
 /**
- * Applies CSS classes and DOM changes according to current settings
+ * Applies CSS classes and dynamic CSS variables according to settings
  */
 function applySettings() {
     const settings = extension_settings[extensionName];
     const body = document.body;
 
     if (!settings || !settings.enabled) {
-        body.classList.remove('cut-hide-tutorials', 'cut-hide-language-select', 'cut-hide-redirect-links', 'cut-hide-slider-tips', 'cut-hide-cc-invalid', 'cut-persona-450', 'cut-css-500', 'cut-mobile-anti-jump');
+        body.classList.remove(
+            'cut-hide-tutorials', 'cut-hide-language-select', 'cut-hide-redirect-links', 
+            'cut-hide-slider-tips', 'cut-hide-cc-invalid', 'cut-mobile-anti-jump',
+            'cut-persona-height-active', 'cut-char-desc-height-active', 'cut-css-height-active', 'cut-avatar-height-active'
+        );
         applyModule2Settings();
         applyMobileInputAntiJump();
-        applyMobilePasteOptimization();
         return;
     }
 
-    // Module 1 Features
+    // Module 1 Features [CSS & JS]
     body.classList.toggle('cut-hide-tutorials', !!settings.module1.hideTutorials);
     body.classList.toggle('cut-hide-language-select', !!settings.module1.hideLanguageSelect);
     body.classList.toggle('cut-hide-redirect-links', !!settings.module1.hideRedirectLinks);
     body.classList.toggle('cut-hide-slider-tips', !!settings.module1.hideSliderTips);
     body.classList.toggle('cut-hide-cc-invalid', !!settings.module1.hideCcInvalid);
 
-    // Module 2 Features
-    body.classList.toggle('cut-persona-450', !!(settings.module2 && settings.module2.personaHeight450));
-    body.classList.toggle('cut-css-500', !!(settings.module2 && settings.module2.customCssHeight500));
-    
+    // Module 2 Dynamic Height Features [CSS Variables]
+    const pHeight = parseInt(settings.module2.personaHeight) || 450;
+    const cdHeight = parseInt(settings.module2.charDescHeight) || 450;
+    const cHeight = parseInt(settings.module2.customCssHeight) || 500;
+    const aHeight = parseInt(settings.module2.userAvatarHeight) || 300;
+
+    document.documentElement.style.setProperty('--cut-persona-height', `${pHeight}px`);
+    document.documentElement.style.setProperty('--cut-char-desc-height', `${cdHeight}px`);
+    document.documentElement.style.setProperty('--cut-css-height', `${cHeight}px`);
+    document.documentElement.style.setProperty('--cut-avatar-height', `${aHeight}px`);
+
+    body.classList.toggle('cut-persona-height-active', !!settings.module2.enablePersonaHeight);
+    body.classList.toggle('cut-char-desc-height-active', !!settings.module2.enableCharDescHeight);
+    body.classList.toggle('cut-css-height-active', !!settings.module2.enableCssHeight);
+    body.classList.toggle('cut-avatar-height-active', !!settings.module2.enableAvatarHeight);
+
     applyModule2Settings();
     applyMobileInputAntiJump();
-    applyMobilePasteOptimization();
 }
 
 /**
@@ -702,13 +963,13 @@ function renderSettingsUI() {
         const html = `
         <div id="${containerId}" class="inline-drawer extension_container">
             <div class="inline-drawer-toggle inline-drawer-header">
-                <b>ui精简</b>
+                <b>页面精简</b>
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
 
             <div class="inline-drawer-content" style="display: none;">
                 <div class="cut-master-row">
-                    <span>启用 UI 精简拓展</span>
+                    <span>启用 页面精简 拓展</span>
                     <label class="checkbox_label margin0" title="开启/关闭精简拓展总开关">
                         <input type="checkbox" id="cut_master_toggle">
                     </label>
@@ -717,19 +978,20 @@ function renderSettingsUI() {
                 <div id="cut_modules_wrapper">
                     <!-- 模块切换 Tab 标签页 -->
                     <div class="cut-tabs">
-                        <div class="cut-tab active" data-tab="cut_tab_m1">模块一</div>
-                        <div class="cut-tab" data-tab="cut_tab_m2">模块二</div>
+                        <div class="cut-tab active" data-tab="cut_tab_m1">模块一：元素精简</div>
+                        <div class="cut-tab" data-tab="cut_tab_m2">模块二：界面收纳</div>
                     </div>
 
                     <!-- 模块一 Tab 内容 -->
                     <div id="cut_tab_m1" class="cut-tab-content active">
                         <div class="cut-module-section">
-                            <div class="cut-module-title"><b>模块一：页面元素精简与体验优化</b></div>
+                            <div class="cut-module-title"><b>模块一：页面元素精简</b></div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_tutorials">
                                     <input type="checkbox" id="cut_m1_tutorials">
-                                    <span>1. 隐藏问号图标引导及教程类</span>
+                                    <span>隐藏教程图标</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
                                 </label>
                             </div>
                             <div class="cut-option-desc">隐藏设置项旁、标题栏及页面各处的问号帮助与教程图标</div>
@@ -737,7 +999,8 @@ function renderSettingsUI() {
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_language">
                                     <input type="checkbox" id="cut_m1_language">
-                                    <span>2. 隐藏选择语言设置框</span>
+                                    <span>隐藏语言选择</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
                                 </label>
                             </div>
                             <div class="cut-option-desc">隐藏用户设置及初始引导页中的界面语言选择框 (Language Selector)</div>
@@ -745,15 +1008,17 @@ function renderSettingsUI() {
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_redirects">
                                     <input type="checkbox" id="cut_m1_redirects">
-                                    <span>3. 隐藏三连跳转链接 (Docs / GitHub / Discord)</span>
+                                    <span>隐藏快捷链接</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">隐藏欢迎面板与顶部三连快捷图标（文档 Docs、GitHub、Discord 链接）</div>
+                            <div class="cut-option-desc">隐藏欢迎面板与顶部三连快捷图标（Docs、GitHub、Discord 链接）</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_slidertips">
                                     <input type="checkbox" id="cut_m1_slidertips">
-                                    <span>4. 隐藏滑块手动输入提示</span>
+                                    <span>隐藏滑块提示</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
                                 </label>
                             </div>
                             <div class="cut-option-desc">隐藏“单击滑块以手动输入值”提示框 (#clickSlidersTips)</div>
@@ -761,105 +1026,160 @@ function renderSettingsUI() {
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_ccinvalid">
                                     <input type="checkbox" id="cut_m1_ccinvalid">
-                                    <span>5. 隐藏高级格式化 Chat Completion 无效设置</span>
+                                    <span>隐藏无效格式</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">隐藏高级格式化中聊天补全用不了的设置项 ([data-cc-null]) 与提示 (#advanced-formatting-cc-notice)</div>
+                            <div class="cut-option-desc">隐藏高级格式化中聊天补全用不了的设置项 ([data-cc-null]) 与提示</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_mobile_input">
                                     <input type="checkbox" id="cut_m1_mobile_input">
-                                    <span>6. 手机端输入框防乱弹/防抖动优化</span>
+                                    <span>手机打字防弹</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">优化移动端打字与软键盘弹出时输入框与页面的跳动、抖动与页面错位</div>
-
-                            <div class="cut-option-item">
-                                <label class="cut-option-label" for="cut_m1_mobile_paste">
-                                    <input type="checkbox" id="cut_m1_mobile_paste">
-                                    <span>7. 手机端键盘剪贴板粘贴长文本卡顿优化</span>
-                                </label>
-                            </div>
-                            <div class="cut-option-desc">优化使用输入法自带剪贴板/粘贴按键插入长文本时的卡顿与画面冻结</div>
+                            <div class="cut-option-desc">双重拦截机制与分段粘贴渲染合并，彻底解决移动端代码自动聚焦拉起键盘、打字弹跳、长文本粘贴卡顿与视口抖动问题</div>
                         </div>
                     </div>
 
                     <!-- 模块二 Tab 内容 -->
                     <div id="cut_tab_m2" class="cut-tab-content">
                         <div class="cut-module-section">
-                            <div class="cut-module-title"><b>模块二：设置界面折叠与视界扩展</b></div>
+                            <div class="cut-module-title"><b>模块二：界面收纳与高度配置</b></div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_presets">
                                     <input type="checkbox" id="cut_m2_fold_presets">
-                                    <span>1. 折叠预设界面生成参数</span>
+                                    <span>折叠预设参数</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">将预设面板中平铺的生成参数条目收纳进“预设参数”四字折叠条</div>
+                            <div class="cut-option-desc">将预设面板中平铺的生成参数收纳进“预设参数”折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_witop">
                                     <input type="checkbox" id="cut_m2_fold_witop">
-                                    <span>2. 折叠世界书顶部区域 (#wiTopBlock)</span>
+                                    <span>折叠全局世界</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">将世界书面板顶部的“已启用世界书”与“全局激活设置”收纳进“全局世界书”四字折叠条</div>
+                            <div class="cut-option-desc">将世界书顶部的激活选择与设置收纳进“全局世界书”折叠条</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_fold_user_avatars">
+                                    <input type="checkbox" id="cut_m2_fold_user_avatars">
+                                    <span>折叠人设列表</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">将用户设定面板左侧的人设选择网格与搜索栏收纳进“人设列表”折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_persona">
                                     <input type="checkbox" id="cut_m2_fold_persona">
-                                    <span>3. 折叠用户设定高级参数</span>
+                                    <span>折叠设定设置</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">将用户设定面板中的“插入位置”、“链接”及其小标题与“全局设置”收纳进“设定设置”四字折叠条</div>
+                            <div class="cut-option-desc">将用户设定面板中的“插入位置”、“链接”收纳进“设定设置”折叠条</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_fold_first_message">
+                                    <input type="checkbox" id="cut_m2_fold_first_message">
+                                    <span>折叠角色开场</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">将角色详情编辑页中的开场白文本框与 Token 统计收纳进“角色开场”折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_custom_css">
                                     <input type="checkbox" id="cut_m2_fold_custom_css">
-                                    <span>4. 折叠用户设置：自定义样式</span>
+                                    <span>折叠自定义样式</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">将自定义 CSS 框独立收纳进“界面效果”正上方的“自定义样式”四字折叠条（右侧内置全屏按钮）</div>
+                            <div class="cut-option-desc">将自定义 CSS 框收纳进“界面效果”正上方的“自定义样式”折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_ui_effects">
                                     <input type="checkbox" id="cut_m2_fold_ui_effects">
-                                    <span>5. 折叠用户设置：界面效果</span>
+                                    <span>折叠界面效果</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">将用户设置面板中的头像/聊天/媒体/通知选项收纳进“界面效果”四字折叠条</div>
+                            <div class="cut-option-desc">将用户设置中的头像/聊天/媒体/通知收纳进“界面效果”折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_theme_toggles">
                                     <input type="checkbox" id="cut_m2_fold_theme_toggles">
-                                    <span>6. 折叠用户设置：主题开关</span>
+                                    <span>折叠主题开关</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">将用户设置面板中的窗口宽度/缩放/模糊/阴影滑块与全套 UI 复选开关收纳进“主题开关”四字折叠条</div>
+                            <div class="cut-option-desc">将用户设置中的宽度/缩放/模糊/阴影滑块与复选开关收纳进“主题开关”折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_user_advanced">
                                     <input type="checkbox" id="cut_m2_fold_user_advanced">
-                                    <span>7. 折叠用户设置：高级设置</span>
+                                    <span>折叠高级设置</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
                                 </label>
                             </div>
-                            <div class="cut-option-desc">将用户设置面板右侧的角色处理与聊天/消息处理功能收纳进“高级设置”四字折叠条</div>
+                            <div class="cut-option-desc">将用户设置右侧的角色处理与聊天/消息处理收纳进“高级设置”折叠条</div>
 
                             <div class="cut-option-item">
-                                <label class="cut-option-label" for="cut_m2_persona_450">
-                                    <input type="checkbox" id="cut_m2_persona_450">
-                                    <span>8. 用户设定概述输入框默认 450px</span>
+                                <label class="cut-option-label" for="cut_m2_persona_height_toggle">
+                                    <input type="checkbox" id="cut_m2_persona_height_toggle">
+                                    <span>人设概述高度</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
                                 </label>
+                                <div class="flex-container alignItemsCenter gap5">
+                                    <input type="number" id="cut_m2_persona_height_val" class="text_pole textarea_compact" min="100" max="2000" style="width: 75px; text-align: center;">
+                                    <small>px</small>
+                                </div>
                             </div>
-                            <div class="cut-option-desc">固定人设概述/描述输入框 (#persona_description) 默认高度为 450px，提供超大编辑视野</div>
+                            <div class="cut-option-desc">自定义用户设定概述编辑框 (#persona_description) 的高矮</div>
 
                             <div class="cut-option-item">
-                                <label class="cut-option-label" for="cut_m2_css_500">
-                                    <input type="checkbox" id="cut_m2_css_500">
-                                    <span>9. 自定义 CSS 编辑框默认高度 500px</span>
+                                <label class="cut-option-label" for="cut_m2_char_desc_height_toggle">
+                                    <input type="checkbox" id="cut_m2_char_desc_height_toggle">
+                                    <span>角色描述高度</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
                                 </label>
+                                <div class="flex-container alignItemsCenter gap5">
+                                    <input type="number" id="cut_m2_char_desc_height_val" class="text_pole textarea_compact" min="100" max="2000" style="width: 75px; text-align: center;">
+                                    <small>px</small>
+                                </div>
                             </div>
-                            <div class="cut-option-desc">固定自定义 CSS 代码编辑框 (#customCSS) 默认高度为 500px，提供代码编辑视野</div>
+                            <div class="cut-option-desc">自定义角色详情编辑页中的角色描述/人设框 (#description_textarea) 的高矮</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_css_height_toggle">
+                                    <input type="checkbox" id="cut_m2_css_height_toggle">
+                                    <span>自定义样式高度</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
+                                </label>
+                                <div class="flex-container alignItemsCenter gap5">
+                                    <input type="number" id="cut_m2_css_height_val" class="text_pole textarea_compact" min="100" max="2000" style="width: 75px; text-align: center;">
+                                    <small>px</small>
+                                </div>
+                            </div>
+                            <div class="cut-option-desc">自定义 CSS 代码编辑框 (#customCSS) 的高矮</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_avatar_height_toggle">
+                                    <input type="checkbox" id="cut_m2_avatar_height_toggle">
+                                    <span>用户选择高度</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
+                                </label>
+                                <div class="flex-container alignItemsCenter gap5">
+                                    <input type="number" id="cut_m2_avatar_height_val" class="text_pole textarea_compact" min="100" max="2000" style="width: 75px; text-align: center;">
+                                    <small>px</small>
+                                </div>
+                            </div>
+                            <div class="cut-option-desc">自定义用户人设头像选择栏 (#user_avatar_block) 的最大显示高度</div>
                         </div>
                     </div>
                 </div>
@@ -867,7 +1187,6 @@ function renderSettingsUI() {
         </div>
         `;
 
-        // Append to #extensions_settings drawer container if available
         if ($('#extensions_settings').length > 0) {
             $('#extensions_settings').append(html);
         } else {
@@ -896,17 +1215,29 @@ function renderSettingsUI() {
     $('#cut_m1_slidertips').prop('checked', settings.module1.hideSliderTips);
     $('#cut_m1_ccinvalid').prop('checked', settings.module1.hideCcInvalid);
     $('#cut_m1_mobile_input').prop('checked', settings.module1.fixMobileInput);
-    $('#cut_m1_mobile_paste').prop('checked', settings.module1.optimizeMobilePaste);
 
     $('#cut_m2_fold_presets').prop('checked', settings.module2.foldPresets);
     $('#cut_m2_fold_witop').prop('checked', settings.module2.foldWorldInfoTop);
+    $('#cut_m2_fold_user_avatars').prop('checked', settings.module2.foldUserAvatars);
     $('#cut_m2_fold_persona').prop('checked', settings.module2.foldPersonaSettings);
+    $('#cut_m2_fold_first_message').prop('checked', settings.module2.foldFirstMessage);
     $('#cut_m2_fold_custom_css').prop('checked', settings.module2.foldCustomCss);
     $('#cut_m2_fold_ui_effects').prop('checked', settings.module2.foldUiEffects);
     $('#cut_m2_fold_theme_toggles').prop('checked', settings.module2.foldThemeToggles);
     $('#cut_m2_fold_user_advanced').prop('checked', settings.module2.foldUserAdvanced);
-    $('#cut_m2_persona_450').prop('checked', settings.module2.personaHeight450);
-    $('#cut_m2_css_500').prop('checked', settings.module2.customCssHeight500);
+
+    // Height Toggles & Input Values
+    $('#cut_m2_persona_height_toggle').prop('checked', settings.module2.enablePersonaHeight);
+    $('#cut_m2_persona_height_val').val(settings.module2.personaHeight || 450);
+
+    $('#cut_m2_char_desc_height_toggle').prop('checked', settings.module2.enableCharDescHeight);
+    $('#cut_m2_char_desc_height_val').val(settings.module2.charDescHeight || 450);
+
+    $('#cut_m2_css_height_toggle').prop('checked', settings.module2.enableCssHeight);
+    $('#cut_m2_css_height_val').val(settings.module2.customCssHeight || 500);
+
+    $('#cut_m2_avatar_height_toggle').prop('checked', settings.module2.enableAvatarHeight);
+    $('#cut_m2_avatar_height_val').val(settings.module2.userAvatarHeight || 300);
 
     // Event Handlers
     $('#cut_master_toggle').off('change').on('change', function () {
@@ -952,12 +1283,6 @@ function renderSettingsUI() {
         saveSettingsDebounced();
     });
 
-    $('#cut_m1_mobile_paste').off('change').on('change', function () {
-        settings.module1.optimizeMobilePaste = $(this).prop('checked');
-        applySettings();
-        saveSettingsDebounced();
-    });
-
     $('#cut_m2_fold_presets').off('change').on('change', function () {
         settings.module2.foldPresets = $(this).prop('checked');
         applySettings();
@@ -970,8 +1295,20 @@ function renderSettingsUI() {
         saveSettingsDebounced();
     });
 
+    $('#cut_m2_fold_user_avatars').off('change').on('change', function () {
+        settings.module2.foldUserAvatars = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
     $('#cut_m2_fold_persona').off('change').on('change', function () {
         settings.module2.foldPersonaSettings = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_fold_first_message').off('change').on('change', function () {
+        settings.module2.foldFirstMessage = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
@@ -1000,14 +1337,55 @@ function renderSettingsUI() {
         saveSettingsDebounced();
     });
 
-    $('#cut_m2_persona_450').off('change').on('change', function () {
-        settings.module2.personaHeight450 = $(this).prop('checked');
+    // Height Event Handlers
+    $('#cut_m2_persona_height_toggle').off('change').on('change', function () {
+        settings.module2.enablePersonaHeight = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
 
-    $('#cut_m2_css_500').off('change').on('change', function () {
-        settings.module2.customCssHeight500 = $(this).prop('checked');
+    $('#cut_m2_persona_height_val').off('input change').on('input change', function () {
+        const val = parseInt($(this).val()) || 450;
+        settings.module2.personaHeight = val;
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_char_desc_height_toggle').off('change').on('change', function () {
+        settings.module2.enableCharDescHeight = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_char_desc_height_val').off('input change').on('input change', function () {
+        const val = parseInt($(this).val()) || 450;
+        settings.module2.charDescHeight = val;
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_css_height_toggle').off('change').on('change', function () {
+        settings.module2.enableCssHeight = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_css_height_val').off('input change').on('input change', function () {
+        const val = parseInt($(this).val()) || 500;
+        settings.module2.customCssHeight = val;
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_avatar_height_toggle').off('change').on('change', function () {
+        settings.module2.enableAvatarHeight = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_avatar_height_val').off('input change').on('input change', function () {
+        const val = parseInt($(this).val()) || 300;
+        settings.module2.userAvatarHeight = val;
         applySettings();
         saveSettingsDebounced();
     });
@@ -1018,9 +1396,10 @@ function renderSettingsUI() {
 // Initialize Extension
 jQuery(async () => {
     loadSettings();
+    initAutoFocusInterceptor();
+    initPastePerformanceFix();
     applySettings();
 
-    // Check & apply UI drawer rendering and module 2 DOM folding
     const checkDrawerInterval = setInterval(() => {
         applyPromptManagerMaximizeButton();
         applyPromptManagerEntryParamsFolding();
@@ -1030,7 +1409,7 @@ jQuery(async () => {
         if ($('#extensions_settings').length > 0 || $('#rm_extensions_block').length > 0) {
             renderSettingsUI();
         }
-        if ($('#ai_response_configuration').length > 0 || $('#wi-holder').length > 0 || $('.persona_management_right_column').length > 0 || $('#user-settings-block-content').length > 0) {
+        if ($('#ai_response_configuration').length > 0 || $('#wi-holder').length > 0 || $('.persona_management_right_column').length > 0 || $('#user-settings-block-content').length > 0 || $('.persona_management_left_column').length > 0 || $('#firstMessageWrapper').length > 0) {
             applyModule2Settings();
         }
         if ($('#cut_container').length > 0 && $('#cut_m2_gen_params_drawer').length > 0) {
@@ -1038,5 +1417,5 @@ jQuery(async () => {
         }
     }, 500);
 
-    console.log('[UI Trimmer] Extension "cut" (Module 1 & Module 2) initialized successfully.');
+    console.log('[UI Trimmer] Extension "cut" (页面精简) initialized successfully.');
 });
