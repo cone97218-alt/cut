@@ -715,6 +715,7 @@ function applyModule2Settings() {
                     <div class="inline-drawer-toggle inline-drawer-header userSettingsInnerExpandable">
                         <b>自定义样式</b>
                         <div class="cut-css-header-actions">
+                            <i class="cut-copy-css-btn fa-solid fa-copy right_menu_button text_pole margin0" title="一键复制自定义样式代码" style="cursor: pointer; opacity: 0.85;"></i>
                             <i class="editor_maximize fa-solid fa-maximize right_menu_button text_pole margin0" data-for="customCSS" title="展开全屏编辑器" style="cursor: pointer;"></i>
                             <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down margin0"></div>
                         </div>
@@ -1400,12 +1401,59 @@ function renderSettingsUI() {
     $('#cut_modules_wrapper').toggle(settings.enabled);
 }
 
+// Bind Copy Custom CSS Button Action
+function bindCopyCustomCssAction() {
+    $(document).off('click.cut_copy_css', '#cut_m2_custom_css_drawer .cut-copy-css-btn').on('click.cut_copy_css', '#cut_m2_custom_css_drawer .cut-copy-css-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const cssText = $('#customCSS').val() || '';
+        if (!cssText) {
+            if (window.toastr) toastr.info('自定义样式框内容为空');
+            return;
+        }
+
+        const $icon = $(this);
+        const successCallback = () => {
+            if (window.toastr) toastr.success('自定义样式代码已复制到剪贴板！');
+            $icon.removeClass('fa-copy').addClass('fa-check').css('color', '#4caf50');
+            setTimeout(() => {
+                $icon.removeClass('fa-check').addClass('fa-copy').css('color', '');
+            }, 1500);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(cssText).then(successCallback).catch(() => {
+                fallbackCopy(cssText, successCallback);
+            });
+        } else {
+            fallbackCopy(cssText, successCallback);
+        }
+    });
+}
+
+function fallbackCopy(text, cb) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        cb();
+    } catch (err) {
+        console.error('Copy failed', err);
+    }
+    document.body.removeChild(textarea);
+}
+
 // Initialize Extension
 jQuery(async () => {
     loadSettings();
     initAutoFocusInterceptor();
     initPastePerformanceFix();
     applySettings();
+    bindCopyCustomCssAction();
 
     const checkDrawerInterval = setInterval(() => {
         applyPromptManagerMaximizeButton();

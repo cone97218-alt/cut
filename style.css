@@ -245,6 +245,7 @@ body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_blo
     font-weight: 900 !important;
 }
 
+#cut_m2_custom_css_drawer .cut-copy-css-btn,
 #cut_m2_custom_css_drawer .editor_maximize {
     background: transparent !important;
     background-color: transparent !important;
@@ -254,9 +255,10 @@ body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_blo
     font-size: 0.95em;
     opacity: 0.8;
     cursor: pointer;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
 }
 
+#cut_m2_custom_css_drawer .cut-copy-css-btn:hover,
 #cut_m2_custom_css_drawer .editor_maximize:hover {
     background: transparent !important;
     background-color: transparent !important;
