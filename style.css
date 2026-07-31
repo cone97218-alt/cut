@@ -240,9 +240,15 @@ body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_blo
     margin-left: auto;
 }
 
-.editor_maximize {
+.editor_maximize,
+.cut-copy-css-btn {
     font-family: "Font Awesome 6 Free", "FontAwesome" !important;
     font-weight: 900 !important;
+    display: inline-block !important;
+    font-style: normal !important;
+    font-variant: normal !important;
+    text-rendering: auto !important;
+    line-height: 1 !important;
 }
 
 #cut_m2_custom_css_drawer .cut-copy-css-btn,

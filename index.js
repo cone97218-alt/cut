@@ -1401,50 +1401,84 @@ function renderSettingsUI() {
     $('#cut_modules_wrapper').toggle(settings.enabled);
 }
 
+/**
+ * Universal clipboard copy helper supporting secure context and mobile fallback
+ */
+function copyToClipboard(text) {
+    return new Promise((resolve, reject) => {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(resolve).catch(() => {
+                fallbackCopyText(text) ? resolve() : reject(new Error('Fallback copy failed'));
+            });
+            return;
+        }
+        fallbackCopyText(text) ? resolve() : reject(new Error('Fallback copy failed'));
+    });
+}
+
+function fallbackCopyText(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    textarea.style.top = (window.pageYOffset || document.documentElement.scrollTop) + 'px';
+    textarea.setAttribute('readonly', '');
+    document.body.appendChild(textarea);
+
+    if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
+        const editable = textarea.contentEditable;
+        const readOnly = textarea.readOnly;
+        textarea.contentEditable = 'true';
+        textarea.readOnly = 'false';
+        const range = document.createRange();
+        range.selectNodeContents(textarea);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        textarea.setSelectionRange(0, 999999);
+        textarea.contentEditable = editable;
+        textarea.readOnly = readOnly;
+    } else {
+        textarea.select();
+    }
+
+    let successful = false;
+    try {
+        successful = document.execCommand('copy');
+    } catch (err) {
+        successful = false;
+    }
+    document.body.removeChild(textarea);
+    return successful;
+}
+
 // Bind Copy Custom CSS Button Action
 function bindCopyCustomCssAction() {
     $(document).off('click.cut_copy_css', '#cut_m2_custom_css_drawer .cut-copy-css-btn').on('click.cut_copy_css', '#cut_m2_custom_css_drawer .cut-copy-css-btn', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        const cssText = $('#customCSS').val() || '';
-        if (!cssText) {
-            if (window.toastr) toastr.info('自定义样式框内容为空');
+
+        const $textarea = $('#customCSS');
+        const cssText = $textarea.val() || '';
+
+        if (!cssText.trim()) {
+            if (window.toastr) toastr.info('自定义样式内容为空');
             return;
         }
 
         const $icon = $(this);
-        const successCallback = () => {
-            if (window.toastr) toastr.success('自定义样式代码已复制到剪贴板！');
+
+        copyToClipboard(cssText).then(() => {
+            if (window.toastr) toastr.success('自定义样式代码已成功复制到剪贴板！');
             $icon.removeClass('fa-copy').addClass('fa-check').css('color', '#4caf50');
             setTimeout(() => {
                 $icon.removeClass('fa-check').addClass('fa-copy').css('color', '');
             }, 1500);
-        };
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(cssText).then(successCallback).catch(() => {
-                fallbackCopy(cssText, successCallback);
-            });
-        } else {
-            fallbackCopy(cssText, successCallback);
-        }
+        }).catch((err) => {
+            console.error('[页面精简] 复制失败:', err);
+            if (window.toastr) toastr.error('复制失败，请手动选中代码复制');
+        });
     });
-}
-
-function fallbackCopy(text, cb) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-        document.execCommand('copy');
-        cb();
-    } catch (err) {
-        console.error('Copy failed', err);
-    }
-    document.body.removeChild(textarea);
 }
 
 // Initialize Extension
