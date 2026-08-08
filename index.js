@@ -477,11 +477,97 @@ function replaceAllMatches($textarea, searchStr, replaceStr, isCaseSensitive, is
     }
 }
 
+let undoDebounceTimer = null;
+
+function getSessionJSON(key, fallback) {
+    try {
+        const val = sessionStorage.getItem(key);
+        return val !== null ? JSON.parse(val) : fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
+
+function setSessionJSON(key, val) {
+    try {
+        sessionStorage.setItem(key, JSON.stringify(val));
+    } catch (e) {}
+}
+
+function updateUndoRedoButtons($wrapper) {
+    const undoStack = getSessionJSON('cut_session_undo_stack', []);
+    const redoStack = getSessionJSON('cut_session_redo_stack', []);
+    const $undoBtn = $wrapper.find('.cut-undo-btn');
+    const $redoBtn = $wrapper.find('.cut-redo-btn');
+
+    if (undoStack.length > 1) {
+        $undoBtn.removeClass('disabled').css('opacity', '1');
+    } else {
+        $undoBtn.addClass('disabled').css('opacity', '0.4');
+    }
+
+    if (redoStack.length > 0) {
+        $redoBtn.removeClass('disabled').css('opacity', '1');
+    } else {
+        $redoBtn.addClass('disabled').css('opacity', '0.4');
+    }
+}
+
+function recordUndoSnapshot(val, $wrapper) {
+    let undoStack = getSessionJSON('cut_session_undo_stack', []);
+    if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== val) {
+        undoStack.push(val);
+        if (undoStack.length > 50) undoStack.shift();
+        setSessionJSON('cut_session_undo_stack', undoStack);
+        setSessionJSON('cut_session_redo_stack', []);
+        updateUndoRedoButtons($wrapper);
+    }
+}
+
+function performUndo($textarea, $wrapper) {
+    let undoStack = getSessionJSON('cut_session_undo_stack', []);
+    let redoStack = getSessionJSON('cut_session_redo_stack', []);
+
+    if (undoStack.length > 1) {
+        const current = undoStack.pop();
+        redoStack.push(current);
+        const prev = undoStack[undoStack.length - 1];
+
+        setSessionJSON('cut_session_undo_stack', undoStack);
+        setSessionJSON('cut_session_redo_stack', redoStack);
+
+        $textarea.val(prev);
+        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
+        updateUndoRedoButtons($wrapper);
+    }
+}
+
+function performRedo($textarea, $wrapper) {
+    let undoStack = getSessionJSON('cut_session_undo_stack', []);
+    let redoStack = getSessionJSON('cut_session_redo_stack', []);
+
+    if (redoStack.length > 0) {
+        const next = redoStack.pop();
+        undoStack.push(next);
+
+        setSessionJSON('cut_session_undo_stack', undoStack);
+        setSessionJSON('cut_session_redo_stack', redoStack);
+
+        $textarea.val(next);
+        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
+        updateUndoRedoButtons($wrapper);
+    }
+}
+
 function bindSearchReplaceEvents($wrapper, $textarea) {
     let currentMatches = [];
     let currentIndex = -1;
-    let isCaseSensitive = false;
-    let isRegex = false;
+
+    const savedSearchQuery = sessionStorage.getItem('cut_session_search_query') || '';
+    const savedReplaceQuery = sessionStorage.getItem('cut_session_replace_query') || '';
+    let isCaseSensitive = sessionStorage.getItem('cut_session_search_case') === 'true';
+    let isRegex = sessionStorage.getItem('cut_session_search_regex') === 'true';
+    let isReplaceOpen = sessionStorage.getItem('cut_session_replace_open') === 'true';
 
     const $searchInput = $wrapper.find('.cut-search-input');
     const $replaceInput = $wrapper.find('.cut-replace-input');
@@ -491,9 +577,29 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
     const $replaceRow = $wrapper.find('.cut-replace-row');
     const $toggleReplaceBtn = $wrapper.find('.cut-toggle-replace');
 
+    $searchInput.val(savedSearchQuery);
+    $replaceInput.val(savedReplaceQuery);
+    $caseBtn.toggleClass('active', isCaseSensitive);
+    $regexBtn.toggleClass('active', isRegex);
+
+    if (isReplaceOpen) {
+        $replaceRow.show();
+        $toggleReplaceBtn.addClass('active');
+    }
+
+    const initialText = $textarea.val() || '';
+    let existingUndo = getSessionJSON('cut_session_undo_stack', null);
+    if (!existingUndo || existingUndo.length === 0) {
+        setSessionJSON('cut_session_undo_stack', [initialText]);
+        setSessionJSON('cut_session_redo_stack', []);
+    }
+    updateUndoRedoButtons($wrapper);
+
     const updateSearch = (jumpToNext = false) => {
         const text = $textarea.val() || '';
         const searchStr = $searchInput.val() || '';
+
+        sessionStorage.setItem('cut_session_search_query', searchStr);
 
         if (!searchStr) {
             currentMatches = [];
@@ -518,9 +624,17 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         }
     };
 
+    if (savedSearchQuery) {
+        updateSearch(false);
+    }
+
     $searchInput.off('input.cut_search').on('input.cut_search', function () {
         currentIndex = 0;
         updateSearch(false);
+    });
+
+    $replaceInput.off('input.cut_search').on('input.cut_search', function () {
+        sessionStorage.setItem('cut_session_replace_query', $(this).val() || '');
     });
 
     $searchInput.off('keydown.cut_search').on('keydown.cut_search', function (e) {
@@ -560,6 +674,7 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         e.preventDefault();
         isCaseSensitive = !isCaseSensitive;
         $caseBtn.toggleClass('active', isCaseSensitive);
+        sessionStorage.setItem('cut_session_search_case', isCaseSensitive);
         updateSearch(false);
     });
 
@@ -567,6 +682,7 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         e.preventDefault();
         isRegex = !isRegex;
         $regexBtn.toggleClass('active', isRegex);
+        sessionStorage.setItem('cut_session_search_regex', isRegex);
         updateSearch(false);
     });
 
@@ -574,6 +690,38 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         e.preventDefault();
         $replaceRow.slideToggle(150);
         $toggleReplaceBtn.toggleClass('active');
+        sessionStorage.setItem('cut_session_replace_open', !$replaceRow.is(':visible'));
+    });
+
+    $wrapper.find('.cut-scroll-top').off('click.cut_scroll').on('click.cut_scroll', function (e) {
+        e.preventDefault();
+        const el = $textarea[0];
+        if (el) {
+            el.scrollTop = 0;
+            el.setSelectionRange(0, 0);
+            el.focus();
+        }
+    });
+
+    $wrapper.find('.cut-scroll-bottom').off('click.cut_scroll').on('click.cut_scroll', function (e) {
+        e.preventDefault();
+        const el = $textarea[0];
+        if (el) {
+            el.scrollTop = el.scrollHeight;
+            const len = el.value.length;
+            el.setSelectionRange(len, len);
+            el.focus();
+        }
+    });
+
+    $wrapper.find('.cut-undo-btn').off('click.cut_history').on('click.cut_history', function (e) {
+        e.preventDefault();
+        performUndo($textarea, $wrapper);
+    });
+
+    $wrapper.find('.cut-redo-btn').off('click.cut_history').on('click.cut_history', function (e) {
+        e.preventDefault();
+        performRedo($textarea, $wrapper);
     });
 
     $wrapper.find('.cut-replace-btn').off('click.cut_search').on('click.cut_search', function (e) {
@@ -618,18 +766,32 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         if ($textarea.attr('data-for') === 'customCSS') {
             updateUnappliedCssState(true);
         }
+        clearTimeout(undoDebounceTimer);
+        const val = $textarea.val();
+        undoDebounceTimer = setTimeout(() => {
+            recordUndoSnapshot(val, $wrapper);
+        }, 400);
     });
 
-    $textarea.off('keydown.cut_search_shortcut').on('keydown.cut_search_shortcut', function (e) {
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
-            e.preventDefault();
-            $searchInput.focus().select();
+    $textarea.off('keydown.cut_shortcuts').on('keydown.cut_shortcuts', function (e) {
+        if (e.ctrlKey || e.metaKey) {
+            const key = e.key.toLowerCase();
+            if (key === 'f') {
+                e.preventDefault();
+                $searchInput.focus().select();
+            } else if (key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                performUndo($textarea, $wrapper);
+            } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+                e.preventDefault();
+                performRedo($textarea, $wrapper);
+            }
         }
     });
 }
 
 /**
- * Injects Search & Replace toolbar and scroll buttons in fullscreen textareas
+ * Injects Search & Replace toolbar in fullscreen textareas
  */
 function applyMaximizedEditorScrollActions() {
     $('.maximized_textarea').each(function () {
@@ -650,6 +812,10 @@ function applyMaximizedEditorScrollActions() {
                         <span class="cut-search-count">0/0</span>
                     </div>
                     <div class="cut-search-btn-group">
+                        <button type="button" class="cut-scroll-top menu_button margin0" title="Scroll to Top"><i class="fa-solid fa-angles-up"></i></button>
+                        <button type="button" class="cut-scroll-bottom menu_button margin0" title="Scroll to Bottom"><i class="fa-solid fa-angles-down"></i></button>
+                        <button type="button" class="cut-undo-btn menu_button margin0" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button type="button" class="cut-redo-btn menu_button margin0" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
                         <button type="button" class="cut-search-prev menu_button margin0" title="Previous match (Shift+Enter)"><i class="fa-solid fa-chevron-up"></i></button>
                         <button type="button" class="cut-search-next menu_button margin0" title="Next match (Enter)"><i class="fa-solid fa-chevron-down"></i></button>
                         <button type="button" class="cut-search-case menu_button margin0" title="Match case">Aa</button>
@@ -677,43 +843,6 @@ function applyMaximizedEditorScrollActions() {
 
             $wrapper.prepend(searchBarHtml);
             bindSearchReplaceEvents($wrapper, $textarea);
-        }
-
-        const isRegexReplace = dataFor.includes('replace') || dataFor.includes('cut_regex_field');
-        if (isRegexReplace && $wrapper.find('.cut-editor-scroll-actions').length === 0) {
-            const scrollActionsHtml = `
-            <div class="cut-editor-scroll-actions" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; margin-bottom: 6px;">
-                <div class="cut-scroll-btn cut-scroll-top menu_button margin0" title="一键回到顶部">
-                    <i class="fa-solid fa-arrow-up"></i>
-                </div>
-                <div class="cut-scroll-btn cut-scroll-bottom menu_button margin0" title="一键回到底部">
-                    <i class="fa-solid fa-arrow-down"></i>
-                </div>
-            </div>
-            `;
-            $wrapper.prepend(scrollActionsHtml);
-
-            $wrapper.find('.cut-scroll-top').off('click.cut').on('click.cut', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const el = $textarea[0];
-                if (el) {
-                    el.scrollTop = 0;
-                    el.setSelectionRange(0, 0);
-                    el.focus();
-                }
-            });
-
-            $wrapper.find('.cut-scroll-bottom').off('click.cut').on('click.cut', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const el = $textarea[0];
-                if (el) {
-                    el.scrollTop = el.scrollHeight;
-                    el.setSelectionRange(el.value.length, el.value.length);
-                    el.focus();
-                }
-            });
         }
     });
 }

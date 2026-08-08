@@ -559,6 +559,12 @@ div[name="UserSettingsThirdColumn"] hr {
     border-color: var(--SmartThemeEmColor, #4caf50) !important;
 }
 
+.cut-editor-search-replace-bar .menu_button.disabled {
+    opacity: 0.35 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
 .cut-apply-css-btn {
     background: rgba(255, 255, 255, 0.08) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
