@@ -1,5 +1,26 @@
 /* UI Trimmer (cut) Extension Stylesheet */
 
+body.cut-hide-welcome-assistant #chat .mes[type="assistant_message"] {
+    display: none !important;
+}
+
+body.cut-hide-welcome-prompt #chat .mes[type="welcome_prompt"] {
+    display: none !important;
+}
+
+body.cut-hide-welcome-header-title .welcomeHeaderTitle {
+    display: none !important;
+}
+
+body.cut-hide-welcome-shortcuts .welcomeShortcuts {
+    display: none !important;
+}
+
+body.cut-hide-welcome-onboarding .onboarding,
+body.cut-hide-welcome-onboarding #chat .mes[type="welcome"] {
+    display: none !important;
+}
+
 body.cut-hide-tutorials .note-link-span,
 body.cut-hide-tutorials .notes-link,
 body.cut-hide-tutorials a.topRightInset,
@@ -440,6 +461,14 @@ div[name="UserSettingsThirdColumn"] hr {
     opacity: 0.6;
     margin-left: 24px;
     margin-bottom: 6px;
+}
+
+#cut_container .cut-sub-options-container {
+    margin-left: 14px;
+    padding-left: 10px;
+    border-left: 2px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.2));
+    margin-top: 4px;
+    margin-bottom: 8px;
 }
 
 #cut_container .cut-master-row {

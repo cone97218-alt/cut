@@ -5,6 +5,12 @@ const extensionName = 'cut';
 const defaultSettings = {
     enabled: true,
     module1: {
+        hideWelcome: false,
+        hideWelcomeAssistant: true,
+        hideWelcomePrompt: true,
+        hideWelcomeHeaderTitle: true,
+        hideWelcomeShortcuts: true,
+        hideWelcomeOnboarding: true,
         hideTutorials: true,
         hideLanguageSelect: true,
         hideRedirectLinks: true,
@@ -1455,6 +1461,8 @@ function applySettings() {
 
     if (!settings || !settings.enabled) {
         body.classList.remove(
+            'cut-hide-welcome', 'cut-hide-welcome-assistant', 'cut-hide-welcome-prompt',
+            'cut-hide-welcome-header-title', 'cut-hide-welcome-shortcuts', 'cut-hide-welcome-onboarding',
             'cut-hide-tutorials', 'cut-hide-language-select', 'cut-hide-redirect-links', 
             'cut-hide-slider-tips', 'cut-hide-cc-invalid', 'cut-mobile-anti-jump',
             'cut-persona-height-active', 'cut-char-desc-height-active', 'cut-css-height-active', 'cut-avatar-height-active'
@@ -1465,6 +1473,14 @@ function applySettings() {
     }
 
     // Module 1 Features [CSS & JS]
+    const welcomeEnabled = !!settings.module1.hideWelcome;
+    body.classList.toggle('cut-hide-welcome', welcomeEnabled);
+    body.classList.toggle('cut-hide-welcome-assistant', welcomeEnabled && !!settings.module1.hideWelcomeAssistant);
+    body.classList.toggle('cut-hide-welcome-prompt', welcomeEnabled && !!settings.module1.hideWelcomePrompt);
+    body.classList.toggle('cut-hide-welcome-header-title', welcomeEnabled && !!settings.module1.hideWelcomeHeaderTitle);
+    body.classList.toggle('cut-hide-welcome-shortcuts', welcomeEnabled && !!settings.module1.hideWelcomeShortcuts);
+    body.classList.toggle('cut-hide-welcome-onboarding', welcomeEnabled && !!settings.module1.hideWelcomeOnboarding);
+
     body.classList.toggle('cut-hide-tutorials', !!settings.module1.hideTutorials);
     body.classList.toggle('cut-hide-language-select', !!settings.module1.hideLanguageSelect);
     body.classList.toggle('cut-hide-redirect-links', !!settings.module1.hideRedirectLinks);
@@ -1525,6 +1541,62 @@ function renderSettingsUI() {
                     <div id="cut_tab_m1" class="cut-tab-content active">
                         <div class="cut-module-section">
                             <div class="cut-module-title"><b>模块一：页面元素精简</b></div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m1_welcome">
+                                    <input type="checkbox" id="cut_m1_welcome">
+                                    <span>隐藏欢迎界面元素</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">展开定制主界面未进行聊天时，欢迎屏各细分元素的隐藏规则</div>
+
+                            <div id="cut_welcome_sub_options" class="cut-sub-options-container" style="display: none;">
+                                <div class="cut-option-item">
+                                    <label class="cut-option-label" for="cut_m1_welcome_assistant">
+                                        <input type="checkbox" id="cut_m1_welcome_assistant">
+                                        <span>隐藏助手消息卡片</span>
+                                        <span class="cut-option-tag tag-css">CSS</span>
+                                    </label>
+                                </div>
+                                <div class="cut-option-desc">隐藏欢迎界面的助手对话框与提示信息（图片1）</div>
+
+                                <div class="cut-option-item">
+                                    <label class="cut-option-label" for="cut_m1_welcome_prompt">
+                                        <input type="checkbox" id="cut_m1_welcome_prompt">
+                                        <span>隐藏快捷按钮栏</span>
+                                        <span class="cut-option-tag tag-css">CSS</span>
+                                    </label>
+                                </div>
+                                <div class="cut-option-desc">隐藏“API连接 / 角色管理 / 扩展程序”快捷按钮栏（图片2）</div>
+
+                                <div class="cut-option-item">
+                                    <label class="cut-option-label" for="cut_m1_welcome_header_title">
+                                        <input type="checkbox" id="cut_m1_welcome_header_title">
+                                        <span>隐藏顶部 LOGO 与版本号</span>
+                                        <span class="cut-option-tag tag-css">CSS</span>
+                                    </label>
+                                </div>
+                                <div class="cut-option-desc">隐藏欢迎面板顶部的 SillyTavern LOGO 图标与版本号</div>
+
+                                <div class="cut-option-item">
+                                    <label class="cut-option-label" for="cut_m1_welcome_shortcuts">
+                                        <input type="checkbox" id="cut_m1_welcome_shortcuts">
+                                        <span>隐藏顶部导航链接</span>
+                                        <span class="cut-option-tag tag-css">CSS</span>
+                                    </label>
+                                </div>
+                                <div class="cut-option-desc">隐藏 Docs / GitHub / Discord 等外部跳转链接与临时聊天按钮</div>
+
+                                <div class="cut-option-item">
+                                    <label class="cut-option-label" for="cut_m1_welcome_onboarding">
+                                        <input type="checkbox" id="cut_m1_welcome_onboarding">
+                                        <span>隐藏引导面板</span>
+                                        <span class="cut-option-tag tag-css">CSS</span>
+                                    </label>
+                                </div>
+                                <div class="cut-option-desc">隐藏初始引导卡片与默认欢迎提示</div>
+                            </div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_tutorials">
@@ -1748,6 +1820,15 @@ function renderSettingsUI() {
     // Bind values
     const settings = extension_settings[extensionName];
     $('#cut_master_toggle').prop('checked', settings.enabled);
+    $('#cut_m1_welcome').prop('checked', settings.module1.hideWelcome);
+    $('#cut_m1_welcome_assistant').prop('checked', settings.module1.hideWelcomeAssistant);
+    $('#cut_m1_welcome_prompt').prop('checked', settings.module1.hideWelcomePrompt);
+    $('#cut_m1_welcome_header_title').prop('checked', settings.module1.hideWelcomeHeaderTitle);
+    $('#cut_m1_welcome_shortcuts').prop('checked', settings.module1.hideWelcomeShortcuts);
+    $('#cut_m1_welcome_onboarding').prop('checked', settings.module1.hideWelcomeOnboarding);
+
+    $('#cut_welcome_sub_options').toggle(!!settings.module1.hideWelcome);
+
     $('#cut_m1_tutorials').prop('checked', settings.module1.hideTutorials);
     $('#cut_m1_language').prop('checked', settings.module1.hideLanguageSelect);
     $('#cut_m1_redirects').prop('checked', settings.module1.hideRedirectLinks);
@@ -1784,6 +1865,30 @@ function renderSettingsUI() {
         $('#cut_modules_wrapper').toggle(settings.enabled);
         applySettings();
         saveSettingsDebounced();
+    });
+
+    $('#cut_m1_welcome').off('change').on('change', function () {
+        const isChecked = $(this).prop('checked');
+        settings.module1.hideWelcome = isChecked;
+        $('#cut_welcome_sub_options').slideToggle(isChecked);
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    const welcomeSubOptions = [
+        ['#cut_m1_welcome_assistant', 'hideWelcomeAssistant'],
+        ['#cut_m1_welcome_prompt', 'hideWelcomePrompt'],
+        ['#cut_m1_welcome_header_title', 'hideWelcomeHeaderTitle'],
+        ['#cut_m1_welcome_shortcuts', 'hideWelcomeShortcuts'],
+        ['#cut_m1_welcome_onboarding', 'hideWelcomeOnboarding'],
+    ];
+
+    welcomeSubOptions.forEach(([selector, key]) => {
+        $(selector).off('change').on('change', function () {
+            settings.module1[key] = $(this).prop('checked');
+            applySettings();
+            saveSettingsDebounced();
+        });
     });
 
     $('#cut_m1_tutorials').off('change').on('change', function () {
