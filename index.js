@@ -524,7 +524,9 @@ function recordUndoSnapshot(val, $wrapper, dataFor) {
 
     if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== val) {
         undoStack.push(val);
-        if (undoStack.length > 100) undoStack.shift();
+        if (undoStack.length > 5) {
+            undoStack = undoStack.slice(-5);
+        }
         setSessionJSON(undoKey, undoStack);
         setSessionJSON(redoKey, []);
         updateUndoRedoButtons($wrapper, dataFor);
@@ -540,11 +542,15 @@ function performUndo($textarea, $wrapper) {
     let undoStack = getSessionJSON(undoKey, []);
     let redoStack = getSessionJSON(redoKey, []);
 
+    if (undoStack.length > 5) undoStack = undoStack.slice(-5);
+
     if (undoStack.length > 1) {
         isUndoRedoAction = true;
 
         const current = undoStack.pop();
         redoStack.push(current);
+        if (redoStack.length > 5) redoStack = redoStack.slice(-5);
+
         const prev = undoStack[undoStack.length - 1];
 
         setSessionJSON(undoKey, undoStack);
@@ -585,6 +591,7 @@ function performRedo($textarea, $wrapper) {
 
         const next = redoStack.pop();
         undoStack.push(next);
+        if (undoStack.length > 5) undoStack = undoStack.slice(-5);
 
         setSessionJSON(undoKey, undoStack);
         setSessionJSON(redoKey, redoStack);
@@ -647,6 +654,7 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         let undoStack = getSessionJSON(undoKey, []);
         if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== initialText) {
             undoStack.push(initialText);
+            if (undoStack.length > 5) undoStack = undoStack.slice(-5);
             setSessionJSON(undoKey, undoStack);
         }
         updateUndoRedoButtons($wrapper, dataFor);
@@ -856,19 +864,27 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         }, 60);
     }
 
+    let scrollPosTimer = null;
     $textarea.off('scroll.cut_pos').on('scroll.cut_pos', function () {
-        const el = $textarea[0];
-        if (el) {
-            sessionStorage.setItem(`cut_scroll_pos_${dataFor}`, el.scrollTop);
-        }
+        clearTimeout(scrollPosTimer);
+        scrollPosTimer = setTimeout(() => {
+            const el = $textarea[0];
+            if (el) {
+                sessionStorage.setItem(`cut_scroll_pos_${dataFor}`, el.scrollTop);
+            }
+        }, 150);
     });
 
+    let cursorPosTimer = null;
     $textarea.off('keyup.cut_pos click.cut_pos select.cut_pos').on('keyup.cut_pos click.cut_pos select.cut_pos', function () {
-        const el = $textarea[0];
-        if (el) {
-            sessionStorage.setItem(`cut_cursor_start_${dataFor}`, el.selectionStart);
-            sessionStorage.setItem(`cut_cursor_end_${dataFor}`, el.selectionEnd);
-        }
+        clearTimeout(cursorPosTimer);
+        cursorPosTimer = setTimeout(() => {
+            const el = $textarea[0];
+            if (el) {
+                sessionStorage.setItem(`cut_cursor_start_${dataFor}`, el.selectionStart);
+                sessionStorage.setItem(`cut_cursor_end_${dataFor}`, el.selectionEnd);
+            }
+        }, 150);
     });
 
     $textarea.off('keydown.cut_shortcuts').on('keydown.cut_shortcuts', function (e) {
