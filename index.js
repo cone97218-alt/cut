@@ -773,6 +773,40 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         }, 400);
     });
 
+    const dataFor = $textarea.attr('data-for') || 'default';
+    const savedScrollTop = sessionStorage.getItem(`cut_scroll_pos_${dataFor}`);
+    const savedCursorStart = sessionStorage.getItem(`cut_cursor_start_${dataFor}`);
+    const savedCursorEnd = sessionStorage.getItem(`cut_cursor_end_${dataFor}`);
+
+    if (savedScrollTop !== null) {
+        setTimeout(() => {
+            const el = $textarea[0];
+            if (el) {
+                el.scrollTop = parseInt(savedScrollTop, 10);
+                if (savedCursorStart !== null && savedCursorEnd !== null) {
+                    try {
+                        el.setSelectionRange(parseInt(savedCursorStart, 10), parseInt(savedCursorEnd, 10));
+                    } catch (e) {}
+                }
+            }
+        }, 60);
+    }
+
+    $textarea.off('scroll.cut_pos').on('scroll.cut_pos', function () {
+        const el = $textarea[0];
+        if (el) {
+            sessionStorage.setItem(`cut_scroll_pos_${dataFor}`, el.scrollTop);
+        }
+    });
+
+    $textarea.off('keyup.cut_pos click.cut_pos select.cut_pos').on('keyup.cut_pos click.cut_pos select.cut_pos', function () {
+        const el = $textarea[0];
+        if (el) {
+            sessionStorage.setItem(`cut_cursor_start_${dataFor}`, el.selectionStart);
+            sessionStorage.setItem(`cut_cursor_end_${dataFor}`, el.selectionEnd);
+        }
+    });
+
     $textarea.off('keydown.cut_shortcuts').on('keydown.cut_shortcuts', function (e) {
         if (e.ctrlKey || e.metaKey) {
             const key = e.key.toLowerCase();
