@@ -524,7 +524,7 @@ function recordUndoSnapshot(val, $wrapper, dataFor) {
 
     if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== val) {
         undoStack.push(val);
-        if (undoStack.length > 50) undoStack.shift();
+        if (undoStack.length > 100) undoStack.shift();
         setSessionJSON(undoKey, undoStack);
         setSessionJSON(redoKey, []);
         updateUndoRedoButtons($wrapper, dataFor);
@@ -537,13 +537,8 @@ function performUndo($textarea, $wrapper) {
     const redoKey = `cut_redo_stack_${dataFor}`;
 
     clearTimeout(undoDebounceTimer);
-    const currentVal = $textarea.val();
     let undoStack = getSessionJSON(undoKey, []);
     let redoStack = getSessionJSON(redoKey, []);
-
-    if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== currentVal) {
-        undoStack.push(currentVal);
-    }
 
     if (undoStack.length > 1) {
         isUndoRedoAction = true;
@@ -556,14 +551,24 @@ function performUndo($textarea, $wrapper) {
         setSessionJSON(redoKey, redoStack);
 
         $textarea.val(prev);
-        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
 
         if (dataFor === 'customCSS') {
+            $('#customCSS').val(prev);
             updateUnappliedCssState(true);
+        } else {
+            const $orig = $(`#${dataFor}`);
+            if ($orig.length > 0) $orig.val(prev);
         }
+
+        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
 
         isUndoRedoAction = false;
         updateUndoRedoButtons($wrapper, dataFor);
+    } else {
+        try {
+            $textarea[0].focus();
+            document.execCommand('undo');
+        } catch (e) {}
     }
 }
 
@@ -585,14 +590,24 @@ function performRedo($textarea, $wrapper) {
         setSessionJSON(redoKey, redoStack);
 
         $textarea.val(next);
-        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
 
         if (dataFor === 'customCSS') {
+            $('#customCSS').val(next);
             updateUnappliedCssState(true);
+        } else {
+            const $orig = $(`#${dataFor}`);
+            if ($orig.length > 0) $orig.val(next);
         }
+
+        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
 
         isUndoRedoAction = false;
         updateUndoRedoButtons($wrapper, dataFor);
+    } else {
+        try {
+            $textarea[0].focus();
+            document.execCommand('redo');
+        } catch (e) {}
     }
 }
 
@@ -627,13 +642,15 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         $toggleReplaceBtn.addClass('active');
     }
 
-    const initialText = $textarea.val() || '';
-    let existingUndo = getSessionJSON(undoKey, null);
-    if (!existingUndo || existingUndo.length === 0) {
-        setSessionJSON(undoKey, [initialText]);
-        setSessionJSON(redoKey, []);
-    }
-    updateUndoRedoButtons($wrapper, dataFor);
+    setTimeout(() => {
+        const initialText = $textarea.val() || '';
+        let undoStack = getSessionJSON(undoKey, []);
+        if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== initialText) {
+            undoStack.push(initialText);
+            setSessionJSON(undoKey, undoStack);
+        }
+        updateUndoRedoButtons($wrapper, dataFor);
+    }, 100);
 
     const updateSearch = (jumpToNext = false) => {
         const text = $textarea.val() || '';
@@ -802,16 +819,22 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         updateSearch(false);
     });
 
-    $textarea.off('input.cut_unapplied').on('input.cut_unapplied', function () {
+    $textarea.off('input.cut_unapplied').on('input.cut_unapplied', function (e) {
         if ($textarea.attr('data-for') === 'customCSS') {
             updateUnappliedCssState(true);
         }
         if (!isUndoRedoAction) {
             clearTimeout(undoDebounceTimer);
             const val = $textarea.val();
-            undoDebounceTimer = setTimeout(() => {
+            const inputChar = e.originalEvent && e.originalEvent.data;
+
+            if (!inputChar || inputChar === ' ' || inputChar === '\n' || inputChar === ';' || inputChar === '}' || inputChar === '{') {
                 recordUndoSnapshot(val, $wrapper, dataFor);
-            }, 300);
+            } else {
+                undoDebounceTimer = setTimeout(() => {
+                    recordUndoSnapshot(val, $wrapper, dataFor);
+                }, 250);
+            }
         }
     });
 
