@@ -472,11 +472,30 @@ div[name="UserSettingsThirdColumn"] hr {
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
+    justify-content: space-between !important;
     gap: 4px !important;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
     flex-wrap: nowrap !important;
+}
+
+.cut-editor-search-replace-bar .cut-replace-left-group {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+}
+
+.cut-editor-search-replace-bar .cut-action-btn-group {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+    margin-left: auto !important;
 }
 
 .cut-editor-search-replace-bar .cut-input-group {
