@@ -194,56 +194,6 @@ function initPastePerformanceFix() {
 function initAutoFocusInterceptor() {
     if (isAutoFocusInterceptorBound) return;
     isAutoFocusInterceptorBound = true;
-
-    const updateInteractionTime = (e) => {
-        if (e.target && e.target.closest && e.target.closest('input, textarea, label, button, .menu_button')) {
-            lastDirectInputInteraction = Date.now();
-        }
-    };
-
-    document.addEventListener('pointerdown', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('touchstart', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('touchend', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('mousedown', updateInteractionTime, { capture: true, passive: true });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Tab') {
-            lastTabInteraction = Date.now();
-        }
-    }, { capture: true });
-
-    HTMLElement.prototype.focus = function (options) {
-        const settings = extension_settings[extensionName];
-        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-
-        if (isEnabled) {
-            const tag = this.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA') {
-                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 1000) || (Date.now() - lastTabInteraction < 1000);
-                const isAlreadyFocused = (document.activeElement === this);
-
-                if (!isUserInitiated && !isAlreadyFocused) {
-                    return;
-                }
-            }
-        }
-        return originalFocus.call(this, options);
-    };
-
-    document.addEventListener('focus', (e) => {
-        const settings = extension_settings[extensionName];
-        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-
-        if (isEnabled) {
-            const tag = e.target?.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA') {
-                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 1000) || (Date.now() - lastTabInteraction < 1000);
-                if (!isUserInitiated) {
-                    e.target.blur();
-                }
-            }
-        }
-    }, true);
 }
 
 /**
@@ -862,13 +812,6 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         }, 60);
     }
 
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-        setTimeout(() => {
-            if (document.activeElement && (document.activeElement === $textarea[0] || document.activeElement === $searchInput[0])) {
-                document.activeElement.blur();
-            }
-        }, 80);
-    }
 
     let scrollPosTimer = null;
     $textarea.off('scroll.cut_pos').on('scroll.cut_pos', function () {
