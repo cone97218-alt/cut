@@ -36,6 +36,15 @@ const defaultSettings = {
 // Global state variables
 let hasUnappliedCssChanges = false;
 
+function updateUnappliedCssState(unapplied) {
+    hasUnappliedCssChanges = unapplied;
+    if (unapplied) {
+        $('.cut-apply-css-btn').addClass('has-unapplied');
+    } else {
+        $('.cut-apply-css-btn').removeClass('has-unapplied');
+    }
+}
+
 // Global state for auto-focus interception (Inspired by SillyTavern-Layout & Mobile-Focus-Interceptor)
 const originalFocus = HTMLElement.prototype.focus;
 let lastDirectInputInteraction = 0;
@@ -828,21 +837,14 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
     });
 
     $textarea.off('input.cut_unapplied').on('input.cut_unapplied', function (e) {
-        if ($textarea.attr('data-for') === 'customCSS') {
+        if (dataFor === 'customCSS') {
             updateUnappliedCssState(true);
         }
         if (!isUndoRedoAction) {
             clearTimeout(undoDebounceTimer);
-            const val = $textarea.val();
-            const inputChar = e.originalEvent && e.originalEvent.data;
-
-            if (!inputChar || inputChar === ' ' || inputChar === '\n' || inputChar === ';' || inputChar === '}' || inputChar === '{') {
-                recordUndoSnapshot(val, $wrapper, dataFor);
-            } else {
-                undoDebounceTimer = setTimeout(() => {
-                    recordUndoSnapshot(val, $wrapper, dataFor);
-                }, 250);
-            }
+            undoDebounceTimer = setTimeout(() => {
+                recordUndoSnapshot($textarea.val(), $wrapper, dataFor);
+            }, 300);
         }
     });
 
@@ -1993,7 +1995,7 @@ function applyCustomCssFromMaximized($maximizedTextarea) {
         }
         $maximizedTextarea.closest('.cut-editor-search-replace-bar').find('.cut-apply-css-btn').removeClass('has-unapplied');
         if (window.toastr) {
-            toastr.success('自定义样式已成功应用！');
+            toastr.success('Custom CSS applied!');
         }
     }
 }
