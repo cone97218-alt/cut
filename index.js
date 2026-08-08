@@ -478,6 +478,7 @@ function replaceAllMatches($textarea, searchStr, replaceStr, isCaseSensitive, is
 }
 
 let undoDebounceTimer = null;
+let isUndoRedoAction = false;
 
 function getSessionJSON(key, fallback) {
     try {
@@ -494,9 +495,11 @@ function setSessionJSON(key, val) {
     } catch (e) {}
 }
 
-function updateUndoRedoButtons($wrapper) {
-    const undoStack = getSessionJSON('cut_session_undo_stack', []);
-    const redoStack = getSessionJSON('cut_session_redo_stack', []);
+function updateUndoRedoButtons($wrapper, dataFor) {
+    const undoKey = `cut_undo_stack_${dataFor}`;
+    const redoKey = `cut_redo_stack_${dataFor}`;
+    const undoStack = getSessionJSON(undoKey, []);
+    const redoStack = getSessionJSON(redoKey, []);
     const $undoBtn = $wrapper.find('.cut-undo-btn');
     const $redoBtn = $wrapper.find('.cut-redo-btn');
 
@@ -513,55 +516,92 @@ function updateUndoRedoButtons($wrapper) {
     }
 }
 
-function recordUndoSnapshot(val, $wrapper) {
-    let undoStack = getSessionJSON('cut_session_undo_stack', []);
+function recordUndoSnapshot(val, $wrapper, dataFor) {
+    if (isUndoRedoAction) return;
+    const undoKey = `cut_undo_stack_${dataFor}`;
+    const redoKey = `cut_redo_stack_${dataFor}`;
+    let undoStack = getSessionJSON(undoKey, []);
+
     if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== val) {
         undoStack.push(val);
         if (undoStack.length > 50) undoStack.shift();
-        setSessionJSON('cut_session_undo_stack', undoStack);
-        setSessionJSON('cut_session_redo_stack', []);
-        updateUndoRedoButtons($wrapper);
+        setSessionJSON(undoKey, undoStack);
+        setSessionJSON(redoKey, []);
+        updateUndoRedoButtons($wrapper, dataFor);
     }
 }
 
 function performUndo($textarea, $wrapper) {
-    let undoStack = getSessionJSON('cut_session_undo_stack', []);
-    let redoStack = getSessionJSON('cut_session_redo_stack', []);
+    const dataFor = $textarea.attr('data-for') || 'default';
+    const undoKey = `cut_undo_stack_${dataFor}`;
+    const redoKey = `cut_redo_stack_${dataFor}`;
+
+    clearTimeout(undoDebounceTimer);
+    const currentVal = $textarea.val();
+    let undoStack = getSessionJSON(undoKey, []);
+    let redoStack = getSessionJSON(redoKey, []);
+
+    if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== currentVal) {
+        undoStack.push(currentVal);
+    }
 
     if (undoStack.length > 1) {
+        isUndoRedoAction = true;
+
         const current = undoStack.pop();
         redoStack.push(current);
         const prev = undoStack[undoStack.length - 1];
 
-        setSessionJSON('cut_session_undo_stack', undoStack);
-        setSessionJSON('cut_session_redo_stack', redoStack);
+        setSessionJSON(undoKey, undoStack);
+        setSessionJSON(redoKey, redoStack);
 
         $textarea.val(prev);
         $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
-        updateUndoRedoButtons($wrapper);
+
+        if (dataFor === 'customCSS') {
+            updateUnappliedCssState(true);
+        }
+
+        isUndoRedoAction = false;
+        updateUndoRedoButtons($wrapper, dataFor);
     }
 }
 
 function performRedo($textarea, $wrapper) {
-    let undoStack = getSessionJSON('cut_session_undo_stack', []);
-    let redoStack = getSessionJSON('cut_session_redo_stack', []);
+    const dataFor = $textarea.attr('data-for') || 'default';
+    const undoKey = `cut_undo_stack_${dataFor}`;
+    const redoKey = `cut_redo_stack_${dataFor}`;
+
+    let undoStack = getSessionJSON(undoKey, []);
+    let redoStack = getSessionJSON(redoKey, []);
 
     if (redoStack.length > 0) {
+        isUndoRedoAction = true;
+
         const next = redoStack.pop();
         undoStack.push(next);
 
-        setSessionJSON('cut_session_undo_stack', undoStack);
-        setSessionJSON('cut_session_redo_stack', redoStack);
+        setSessionJSON(undoKey, undoStack);
+        setSessionJSON(redoKey, redoStack);
 
         $textarea.val(next);
         $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
-        updateUndoRedoButtons($wrapper);
+
+        if (dataFor === 'customCSS') {
+            updateUnappliedCssState(true);
+        }
+
+        isUndoRedoAction = false;
+        updateUndoRedoButtons($wrapper, dataFor);
     }
 }
 
 function bindSearchReplaceEvents($wrapper, $textarea) {
     let currentMatches = [];
     let currentIndex = -1;
+    const dataFor = $textarea.attr('data-for') || 'default';
+    const undoKey = `cut_undo_stack_${dataFor}`;
+    const redoKey = `cut_redo_stack_${dataFor}`;
 
     const savedSearchQuery = sessionStorage.getItem('cut_session_search_query') || '';
     const savedReplaceQuery = sessionStorage.getItem('cut_session_replace_query') || '';
@@ -588,12 +628,12 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
     }
 
     const initialText = $textarea.val() || '';
-    let existingUndo = getSessionJSON('cut_session_undo_stack', null);
+    let existingUndo = getSessionJSON(undoKey, null);
     if (!existingUndo || existingUndo.length === 0) {
-        setSessionJSON('cut_session_undo_stack', [initialText]);
-        setSessionJSON('cut_session_redo_stack', []);
+        setSessionJSON(undoKey, [initialText]);
+        setSessionJSON(redoKey, []);
     }
-    updateUndoRedoButtons($wrapper);
+    updateUndoRedoButtons($wrapper, dataFor);
 
     const updateSearch = (jumpToNext = false) => {
         const text = $textarea.val() || '';
@@ -766,14 +806,15 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         if ($textarea.attr('data-for') === 'customCSS') {
             updateUnappliedCssState(true);
         }
-        clearTimeout(undoDebounceTimer);
-        const val = $textarea.val();
-        undoDebounceTimer = setTimeout(() => {
-            recordUndoSnapshot(val, $wrapper);
-        }, 400);
+        if (!isUndoRedoAction) {
+            clearTimeout(undoDebounceTimer);
+            const val = $textarea.val();
+            undoDebounceTimer = setTimeout(() => {
+                recordUndoSnapshot(val, $wrapper, dataFor);
+            }, 300);
+        }
     });
 
-    const dataFor = $textarea.attr('data-for') || 'default';
     const savedScrollTop = sessionStorage.getItem(`cut_scroll_pos_${dataFor}`);
     const savedCursorStart = sessionStorage.getItem(`cut_cursor_start_${dataFor}`);
     const savedCursorEnd = sessionStorage.getItem(`cut_cursor_end_${dataFor}`);
