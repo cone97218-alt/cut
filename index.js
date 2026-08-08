@@ -45,6 +45,207 @@ function updateUnappliedCssState(unapplied) {
     }
 }
 
+// Global state for auto-focus interception (Inspired by SillyTavern-Layout & Mobile-Focus-Interceptor)
+const originalFocus = HTMLElement.prototype.focus;
+let lastDirectInputInteraction = 0;
+let lastTabInteraction = 0;
+let isAutoFocusInterceptorBound = false;
+
+// Paste Performance Batching State (Inspired by akira59851/Mobile-Focus-Interceptor)
+let isPasteFixInstalled = false;
+let pasteBurstTimestamps = [];
+let pasteHasSubstantialText = false;
+let pasteTextParts = [];
+let pasteStartPos = null;
+let pasteTarget = null;
+let pasteBatching = false;
+let pasteFlushTimer = null;
+let pasteCurrentTimeout = 300;
+let pasteRafId = null;
+
+function isEditableInput(el) {
+    return el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable);
+}
+
+/**
+ * Merges and flushes accumulated paste chunks in a single rAF frame with visibility suppression to prevent UI freeze
+ */
+function flushPasteBuffer() {
+    pasteBatching = false;
+    clearTimeout(pasteFlushTimer);
+    pasteFlushTimer = null;
+    pasteBurstTimestamps = [];
+    pasteHasSubstantialText = false;
+    pasteCurrentTimeout = 300;
+
+    if (pasteTextParts.length === 0 || pasteStartPos === null || !pasteTarget) {
+        pasteTextParts = [];
+        pasteStartPos = null;
+        pasteTarget = null;
+        return;
+    }
+
+    const target = pasteTarget;
+    const accumulatedText = pasteTextParts.join('');
+    const start = pasteStartPos;
+    const before = target.value ? target.value.substring(0, start) : '';
+    const after = target.value ? target.value.substring(target.selectionEnd || start) : '';
+
+    pasteTextParts = [];
+    pasteStartPos = null;
+    pasteTarget = null;
+
+    target.style.visibility = 'hidden';
+    target.value = before + accumulatedText + after;
+    const newPos = start + accumulatedText.length;
+    if (typeof target.setSelectionRange === 'function') {
+        target.setSelectionRange(newPos, newPos);
+    }
+
+    pasteRafId = requestAnimationFrame(() => {
+        pasteRafId = null;
+        target.style.visibility = '';
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+}
+
+/**
+ * Initializes mobile large text and rapid burst paste performance optimization
+ */
+function initPastePerformanceFix() {
+    if (isPasteFixInstalled) return;
+    isPasteFixInstalled = true;
+
+    document.addEventListener('beforeinput', (e) => {
+        const settings = extension_settings[extensionName];
+        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+        if (!isEnabled) return;
+
+        const target = e.target;
+        if (!isEditableInput(target) || e.isComposing) return;
+
+        const textInsertTypes = ['insertText', 'insertFromPaste', 'insertCompositionText', 'insertReplacementText'];
+        if (textInsertTypes.indexOf(e.inputType) === -1) return;
+
+        let text = '';
+        if (e.dataTransfer && e.dataTransfer.getData('text/plain')) {
+            text = e.dataTransfer.getData('text/plain');
+        } else if (typeof e.data === 'string') {
+            text = e.data;
+        } else if (e.data !== null && e.data !== undefined) {
+            text = String(e.data);
+        }
+
+        if (!text) return;
+
+        if (pasteBatching && pasteTarget && pasteTarget !== target) {
+            flushPasteBuffer();
+        }
+
+        if (text.length >= 3000) {
+            if (!pasteBatching) {
+                pasteBatching = true;
+                pasteTarget = target;
+                pasteStartPos = target.selectionStart || 0;
+                pasteTextParts = [];
+            }
+            pasteTextParts.push(text);
+            e.preventDefault();
+
+            clearTimeout(pasteFlushTimer);
+            pasteFlushTimer = setTimeout(flushPasteBuffer, 100);
+            return;
+        }
+
+        const now = Date.now();
+        pasteBurstTimestamps.push(now);
+        if (text.length > 3) pasteHasSubstantialText = true;
+
+        while (pasteBurstTimestamps.length > 0 && now - pasteBurstTimestamps[0] > 200) {
+            pasteBurstTimestamps.shift();
+        }
+
+        if (pasteBurstTimestamps.length >= 3 && pasteHasSubstantialText) {
+            if (!pasteBatching) {
+                pasteBatching = true;
+                pasteTarget = target;
+                pasteStartPos = target.selectionStart || 0;
+                pasteTextParts = [];
+                pasteCurrentTimeout = 300;
+            }
+
+            pasteTextParts.push(text);
+            e.preventDefault();
+
+            pasteCurrentTimeout = Math.min(pasteCurrentTimeout * 2, 2000);
+            clearTimeout(pasteFlushTimer);
+            pasteFlushTimer = setTimeout(flushPasteBuffer, pasteCurrentTimeout);
+        } else {
+            if (pasteBatching) {
+                flushPasteBuffer();
+            }
+        }
+    }, true);
+}
+
+/**
+ * Initializes the dual interception algorithm for auto-focus protection
+ */
+function initAutoFocusInterceptor() {
+    if (isAutoFocusInterceptorBound) return;
+    isAutoFocusInterceptorBound = true;
+
+    const updateInteractionTime = (e) => {
+        if (e.target && e.target.closest && e.target.closest('input, textarea, label, button, .menu_button')) {
+            lastDirectInputInteraction = Date.now();
+        }
+    };
+
+    document.addEventListener('pointerdown', updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('touchstart', updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('touchend', updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('mousedown', updateInteractionTime, { capture: true, passive: true });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            lastTabInteraction = Date.now();
+        }
+    }, { capture: true });
+
+    HTMLElement.prototype.focus = function (options) {
+        const settings = extension_settings[extensionName];
+        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+
+        if (isEnabled) {
+            const tag = this.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 1000) || (Date.now() - lastTabInteraction < 1000);
+                const isAlreadyFocused = (document.activeElement === this);
+
+                if (!isUserInitiated && !isAlreadyFocused) {
+                    return;
+                }
+            }
+        }
+        return originalFocus.call(this, options);
+    };
+
+    document.addEventListener('focus', (e) => {
+        const settings = extension_settings[extensionName];
+        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+
+        if (isEnabled) {
+            const tag = e.target?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 1000) || (Date.now() - lastTabInteraction < 1000);
+                if (!isUserInitiated) {
+                    e.target.blur();
+                }
+            }
+        }
+    }, true);
+}
+
 /**
  * Ensures settings object is populated with default values
  */
@@ -234,6 +435,7 @@ function locateMatchInTextarea($textarea, matches, index) {
     if (!el) return;
 
     const match = matches[index];
+    el.focus();
     el.setSelectionRange(match.start, match.end);
 
     const textBefore = el.value.substring(0, match.start);
@@ -379,6 +581,7 @@ function performUndo($textarea, $wrapper) {
         updateUndoRedoButtons($wrapper, dataFor);
     } else {
         try {
+            $textarea[0].focus();
             document.execCommand('undo');
         } catch (e) {}
     }
@@ -418,6 +621,7 @@ function performRedo($textarea, $wrapper) {
         updateUndoRedoButtons($wrapper, dataFor);
     } else {
         try {
+            $textarea[0].focus();
             document.execCommand('redo');
         } catch (e) {}
     }
@@ -441,7 +645,8 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
     const $searchCount = $wrapper.find('.cut-search-count');
     const $caseBtn = $wrapper.find('.cut-search-case');
     const $regexBtn = $wrapper.find('.cut-search-regex');
-    const $replaceLeftGroup = $wrapper.find('.cut-replace-left-group');
+    const $replaceRow = $wrapper.find('.cut-replace-row');
+    const $toggleReplaceBtn = $wrapper.find('.cut-toggle-replace');
 
     $searchInput.val(savedSearchQuery);
     $replaceInput.val(savedReplaceQuery);
@@ -449,10 +654,8 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
     $regexBtn.toggleClass('active', isRegex);
 
     if (isReplaceOpen) {
-        $replaceLeftGroup.show();
+        $replaceRow.show();
         $toggleReplaceBtn.addClass('active');
-    } else {
-        $replaceLeftGroup.hide();
     }
 
     setTimeout(() => {
@@ -559,9 +762,9 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
 
     $toggleReplaceBtn.off('click.cut_search').on('click.cut_search', function (e) {
         e.preventDefault();
-        $replaceLeftGroup.slideToggle(150);
+        $replaceRow.slideToggle(150);
         $toggleReplaceBtn.toggleClass('active');
-        sessionStorage.setItem('cut_session_replace_open', !$replaceLeftGroup.is(':visible'));
+        sessionStorage.setItem('cut_session_replace_open', !$replaceRow.is(':visible'));
     });
 
     $wrapper.find('.cut-scroll-top').off('click.cut_scroll').on('click.cut_scroll', function (e) {
@@ -570,6 +773,7 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         if (el) {
             el.scrollTop = 0;
             el.setSelectionRange(0, 0);
+            el.focus();
         }
     });
 
@@ -580,6 +784,7 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
             el.scrollTop = el.scrollHeight;
             const len = el.value.length;
             el.setSelectionRange(len, len);
+            el.focus();
         }
     });
 
@@ -661,14 +866,6 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
         }, 60);
     }
 
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-        setTimeout(() => {
-            if (document.activeElement && (document.activeElement === $textarea[0] || document.activeElement === $searchInput[0])) {
-                document.activeElement.blur();
-            }
-        }, 80);
-    }
-
     let scrollPosTimer = null;
     $textarea.off('scroll.cut_pos').on('scroll.cut_pos', function () {
         clearTimeout(scrollPosTimer);
@@ -736,29 +933,25 @@ function applyMaximizedEditorScrollActions() {
                         <button type="button" class="cut-search-case menu_button margin0" title="Match case">Aa</button>
                         <button type="button" class="cut-search-regex menu_button margin0" title="Regular expression">.*</button>
                         <button type="button" class="cut-toggle-replace menu_button margin0" title="Toggle replace toolbar"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
-                    </div>
-                </div>
-                <div class="cut-replace-row">
-                    <div class="cut-replace-left-group" style="display: none;">
-                        <div class="cut-input-group">
-                            <i class="fa-solid fa-repeat replace-icon"></i>
-                            <input type="text" class="cut-replace-input text_pole margin0" placeholder="Replace with...">
-                        </div>
-                        <div class="cut-replace-btn-group">
-                            <button type="button" class="cut-replace-btn menu_button margin0" title="Replace current match"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
-                            <button type="button" class="cut-replace-all-btn menu_button margin0" title="Replace all matches"><i class="fa-solid fa-rotate"></i></button>
-                        </div>
-                    </div>
-                    <div class="cut-action-btn-group">
-                        <button type="button" class="cut-scroll-top menu_button margin0" title="Scroll to Top"><i class="fa-solid fa-angles-up"></i></button>
-                        <button type="button" class="cut-scroll-bottom menu_button margin0" title="Scroll to Bottom"><i class="fa-solid fa-angles-down"></i></button>
-                        <button type="button" class="cut-undo-btn menu_button margin0" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
-                        <button type="button" class="cut-redo-btn menu_button margin0" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
                         ${isCustomCss ? `
                         <button type="button" class="cut-apply-css-btn menu_button margin0 ${hasUnappliedCssChanges ? 'has-unapplied' : ''}" title="Apply CSS to page">
                             <i class="fa-solid fa-check"></i>
                         </button>
                         ` : ''}
+                    </div>
+                </div>
+                <div class="cut-replace-row" style="display: none;">
+                    <div class="cut-input-group">
+                        <i class="fa-solid fa-repeat replace-icon"></i>
+                        <input type="text" class="cut-replace-input text_pole margin0" placeholder="Replace with...">
+                    </div>
+                    <div class="cut-replace-btn-group">
+                        <button type="button" class="cut-scroll-top menu_button margin0" title="Scroll to Top"><i class="fa-solid fa-angles-up"></i></button>
+                        <button type="button" class="cut-scroll-bottom menu_button margin0" title="Scroll to Bottom"><i class="fa-solid fa-angles-down"></i></button>
+                        <button type="button" class="cut-undo-btn menu_button margin0" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button type="button" class="cut-redo-btn menu_button margin0" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+                        <button type="button" class="cut-replace-btn menu_button margin0" title="Replace current match"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
+                        <button type="button" class="cut-replace-all-btn menu_button margin0" title="Replace all matches"><i class="fa-solid fa-rotate"></i></button>
                     </div>
                 </div>
             </div>
@@ -1849,8 +2042,10 @@ function bindCopyCustomCssAction() {
 }
 
 // Initialize Extension
-jQuery(function () {
+jQuery(async () => {
     loadSettings();
+    initAutoFocusInterceptor();
+    initPastePerformanceFix();
     applySettings();
     bindCopyCustomCssAction();
     bindApplyCustomCssAction();
