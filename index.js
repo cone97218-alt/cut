@@ -5,33 +5,36 @@ const extensionName = 'cut';
 const defaultSettings = {
     enabled: true,
     module1: {
-        hideTutorials: true,      // 1. 隐藏教程图标 [CSS]
-        hideLanguageSelect: true, // 2. 隐藏语言选择 [CSS]
-        hideRedirectLinks: true,  // 3. 隐藏快捷链接 [CSS]
-        hideSliderTips: true,     // 4. 隐藏滑块提示 [CSS]
-        hideCcInvalid: true,      // 5. 隐藏无效格式 [CSS]
-        fixMobileInput: true,     // 6. 手机打字防弹 [JS]
+        hideTutorials: true,
+        hideLanguageSelect: true,
+        hideRedirectLinks: true,
+        hideSliderTips: true,
+        hideCcInvalid: true,
+        fixMobileInput: true,
     },
     module2: {
-        foldPresets: true,        // 1. 折叠预设参数 [JS]
-        foldWorldInfoTop: true,   // 2. 折叠全局世界 [JS]
-        foldUserAvatars: true,    // 3. 折叠人设列表 ("人设列表" 4-character drawer) [JS]
-        foldPersonaSettings: true,// 4. 折叠设定设置 [JS]
-        foldFirstMessage: true,   // 5. 折叠角色开场 ("角色开场" 4-character drawer) [JS]
-        foldCustomCss: true,      // 6. 折叠自定义样式 [JS]
-        foldUiEffects: true,      // 7. 折叠界面效果 [JS]
-        foldThemeToggles: true,   // 8. 折叠主题开关 [JS]
-        foldUserAdvanced: true,   // 9. 折叠高级设置 [JS]
-        enablePersonaHeight: true,// 10. 人设概述高度 [CSS]
-        personaHeight: 450,       // 人设概述高度 (px)
-        enableCharDescHeight: true,// 11. 角色描述高度 (#description_textarea) [CSS]
-        charDescHeight: 450,      // 角色描述高度 (px)
-        enableCssHeight: true,    // 12. 自定义样式高度 [CSS]
-        customCssHeight: 500,     // 自定义样式高度 (px)
-        enableAvatarHeight: true, // 13. 用户选择高度 [CSS]
-        userAvatarHeight: 300,    // 用户选择高度 (#user_avatar_block) (px)
+        foldPresets: true,
+        foldWorldInfoTop: true,
+        foldUserAvatars: true,
+        foldPersonaSettings: true,
+        foldFirstMessage: true,
+        foldCustomCss: true,
+        foldUiEffects: true,
+        foldThemeToggles: true,
+        foldUserAdvanced: true,
+        enablePersonaHeight: true,
+        personaHeight: 450,
+        enableCharDescHeight: true,
+        charDescHeight: 450,
+        enableCssHeight: true,
+        customCssHeight: 500,
+        enableAvatarHeight: true,
+        userAvatarHeight: 300,
     },
 };
+
+// Global state variables
+let hasUnappliedCssChanges = false;
 
 // Global state for auto-focus interception (Inspired by SillyTavern-Layout & Mobile-Focus-Interceptor)
 const originalFocus = HTMLElement.prototype.focus;
@@ -261,14 +264,14 @@ function loadSettings() {
  * Optimizes mobile input typing behavior
  */
 function applyMobileInputAntiJump() {
-    const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    const isMobile = (window.innerWidth <= 768) || (('ontouchstart' in window) && window.innerWidth <= 1024);
     const settings = extension_settings[extensionName];
     const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
 
     document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
 
     if (isEnabled && isMobile) {
-        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea, .text_pole, textarea, input[type="text"]', function () {
+        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea', function () {
             const chatEl = document.getElementById('chat');
             if (chatEl) {
                 const scrollTop = chatEl.scrollTop;
@@ -384,51 +387,333 @@ function applyRegexEditorEnhancements() {
 }
 
 /**
- * Injects "一键回顶" & "一键回底" scroll buttons in fullscreen replace textareas
+ * Search, Locate & Replace helper functions for maximized editors
+ */
+function getSearchMatches(text, searchStr, isCaseSensitive, isRegex) {
+    if (!text || !searchStr) return [];
+    const matches = [];
+
+    if (isRegex) {
+        try {
+            const flags = isCaseSensitive ? 'g' : 'gi';
+            const re = new RegExp(searchStr, flags);
+            let match;
+            while ((match = re.exec(text)) !== null) {
+                matches.push({ start: match.index, end: match.index + match[0].length, text: match[0] });
+                if (match.index === re.lastIndex) {
+                    re.lastIndex++;
+                }
+            }
+        } catch (e) {
+            return [];
+        }
+    } else {
+        const searchLower = isCaseSensitive ? searchStr : searchStr.toLowerCase();
+        const textToSearch = isCaseSensitive ? text : text.toLowerCase();
+        let pos = 0;
+        while ((pos = textToSearch.indexOf(searchLower, pos)) !== -1) {
+            matches.push({ start: pos, end: pos + searchStr.length, text: text.substring(pos, pos + searchStr.length) });
+            pos += searchStr.length || 1;
+        }
+    }
+
+    return matches;
+}
+
+function locateMatchInTextarea($textarea, matches, index) {
+    if (!matches || matches.length === 0 || index < 0 || index >= matches.length) return;
+    const el = $textarea[0];
+    if (!el) return;
+
+    const match = matches[index];
+    el.focus();
+    el.setSelectionRange(match.start, match.end);
+
+    const textBefore = el.value.substring(0, match.start);
+    const lineNumber = textBefore.split('\n').length;
+
+    const style = window.getComputedStyle(el);
+    const fontSize = parseFloat(style.fontSize) || 14;
+    const lineHeight = parseFloat(style.lineHeight) || (fontSize * 1.4);
+
+    const visibleLines = Math.floor(el.clientHeight / lineHeight) || 10;
+    const targetScroll = Math.max(0, (lineNumber - Math.floor(visibleLines / 2)) * lineHeight);
+    el.scrollTop = targetScroll;
+}
+
+function replaceAllMatches($textarea, searchStr, replaceStr, isCaseSensitive, isRegex) {
+    const val = $textarea.val() || '';
+    if (!searchStr) return;
+
+    let count = 0;
+    let newVal = '';
+
+    if (isRegex) {
+        try {
+            const flags = isCaseSensitive ? 'g' : 'gi';
+            const re = new RegExp(searchStr, flags);
+            const matches = val.match(re);
+            count = matches ? matches.length : 0;
+            newVal = val.replace(re, replaceStr);
+        } catch (e) {
+            if (window.toastr) toastr.error('正则表达式语法错误');
+            return;
+        }
+    } else {
+        const flags = isCaseSensitive ? 'g' : 'gi';
+        const escaped = searchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(escaped, flags);
+        const matches = val.match(re);
+        count = matches ? matches.length : 0;
+        newVal = val.replace(re, replaceStr);
+    }
+
+    if (count > 0) {
+        $textarea.val(newVal);
+        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
+        if (window.toastr) toastr.success(`已成功替换 ${count} 处匹配项`);
+    } else {
+        if (window.toastr) toastr.info('未找到可替换的匹配项');
+    }
+}
+
+function bindSearchReplaceEvents($wrapper, $textarea) {
+    let currentMatches = [];
+    let currentIndex = -1;
+    let isCaseSensitive = false;
+    let isRegex = false;
+
+    const $searchInput = $wrapper.find('.cut-search-input');
+    const $replaceInput = $wrapper.find('.cut-replace-input');
+    const $searchCount = $wrapper.find('.cut-search-count');
+    const $caseBtn = $wrapper.find('.cut-search-case');
+    const $regexBtn = $wrapper.find('.cut-search-regex');
+    const $replaceRow = $wrapper.find('.cut-replace-row');
+    const $toggleReplaceBtn = $wrapper.find('.cut-toggle-replace');
+
+    const updateSearch = (jumpToNext = false) => {
+        const text = $textarea.val() || '';
+        const searchStr = $searchInput.val() || '';
+
+        if (!searchStr) {
+            currentMatches = [];
+            currentIndex = -1;
+            $searchCount.text('0/0');
+            return;
+        }
+
+        currentMatches = getSearchMatches(text, searchStr, isCaseSensitive, isRegex);
+
+        if (currentMatches.length === 0) {
+            currentIndex = -1;
+            $searchCount.text('0/0');
+        } else {
+            if (jumpToNext) {
+                currentIndex = (currentIndex + 1) % currentMatches.length;
+            } else if (currentIndex < 0 || currentIndex >= currentMatches.length) {
+                currentIndex = 0;
+            }
+            $searchCount.text(`${currentIndex + 1}/${currentMatches.length}`);
+            locateMatchInTextarea($textarea, currentMatches, currentIndex);
+        }
+    };
+
+    $searchInput.off('input.cut_search').on('input.cut_search', function () {
+        currentIndex = 0;
+        updateSearch(false);
+    });
+
+    $searchInput.off('keydown.cut_search').on('keydown.cut_search', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (currentMatches.length > 0) {
+                if (e.shiftKey) {
+                    currentIndex = (currentIndex - 1 + currentMatches.length) % currentMatches.length;
+                } else {
+                    currentIndex = (currentIndex + 1) % currentMatches.length;
+                }
+                $searchCount.text(`${currentIndex + 1}/${currentMatches.length}`);
+                locateMatchInTextarea($textarea, currentMatches, currentIndex);
+            }
+        }
+    });
+
+    $wrapper.find('.cut-search-prev').off('click.cut_search').on('click.cut_search', function (e) {
+        e.preventDefault();
+        if (currentMatches.length > 0) {
+            currentIndex = (currentIndex - 1 + currentMatches.length) % currentMatches.length;
+            $searchCount.text(`${currentIndex + 1}/${currentMatches.length}`);
+            locateMatchInTextarea($textarea, currentMatches, currentIndex);
+        }
+    });
+
+    $wrapper.find('.cut-search-next').off('click.cut_search').on('click.cut_search', function (e) {
+        e.preventDefault();
+        if (currentMatches.length > 0) {
+            currentIndex = (currentIndex + 1) % currentMatches.length;
+            $searchCount.text(`${currentIndex + 1}/${currentMatches.length}`);
+            locateMatchInTextarea($textarea, currentMatches, currentIndex);
+        }
+    });
+
+    $caseBtn.off('click.cut_search').on('click.cut_search', function (e) {
+        e.preventDefault();
+        isCaseSensitive = !isCaseSensitive;
+        $caseBtn.toggleClass('active', isCaseSensitive);
+        updateSearch(false);
+    });
+
+    $regexBtn.off('click.cut_search').on('click.cut_search', function (e) {
+        e.preventDefault();
+        isRegex = !isRegex;
+        $regexBtn.toggleClass('active', isRegex);
+        updateSearch(false);
+    });
+
+    $toggleReplaceBtn.off('click.cut_search').on('click.cut_search', function (e) {
+        e.preventDefault();
+        $replaceRow.slideToggle(150);
+        $toggleReplaceBtn.toggleClass('active');
+    });
+
+    $wrapper.find('.cut-replace-btn').off('click.cut_search').on('click.cut_search', function (e) {
+        e.preventDefault();
+        if (currentMatches.length === 0 || currentIndex < 0 || currentIndex >= currentMatches.length) return;
+
+        const match = currentMatches[currentIndex];
+        const val = $textarea.val();
+        const searchStr = $searchInput.val();
+        const replaceStr = $replaceInput.val() || '';
+
+        const before = val.substring(0, match.start);
+        const after = val.substring(match.end);
+
+        let replacement = replaceStr;
+        if (isRegex) {
+            try {
+                const flags = isCaseSensitive ? '' : 'i';
+                const re = new RegExp(searchStr, flags);
+                const matchedText = val.substring(match.start, match.end);
+                replacement = matchedText.replace(re, replaceStr);
+            } catch (err) {}
+        }
+
+        const newVal = before + replacement + after;
+        $textarea.val(newVal);
+        $textarea[0].dispatchEvent(new Event('input', { bubbles: true }));
+
+        updateSearch(true);
+    });
+
+    $wrapper.find('.cut-replace-all-btn').off('click.cut_search').on('click.cut_search', function (e) {
+        e.preventDefault();
+        const searchStr = $searchInput.val();
+        if (!searchStr) return;
+
+        replaceAllMatches($textarea, searchStr, $replaceInput.val() || '', isCaseSensitive, isRegex);
+        updateSearch(false);
+    });
+
+    $textarea.off('input.cut_unapplied').on('input.cut_unapplied', function () {
+        if ($textarea.attr('data-for') === 'customCSS') {
+            updateUnappliedCssState(true);
+        }
+    });
+
+    $textarea.off('keydown.cut_search_shortcut').on('keydown.cut_search_shortcut', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            $searchInput.focus().select();
+        }
+    });
+}
+
+/**
+ * Injects Search & Replace toolbar and scroll buttons in fullscreen textareas
  */
 function applyMaximizedEditorScrollActions() {
     $('.maximized_textarea').each(function () {
         const $textarea = $(this);
+        const $wrapper = $textarea.parent();
+        if ($wrapper.length === 0) return;
+
         const dataFor = $textarea.attr('data-for') || '';
-        const isRegexReplace = dataFor.includes('replace') || dataFor.includes('cut_regex_field');
-        
-        if (isRegexReplace) {
-            const $wrapper = $textarea.parent();
-            if ($wrapper.length > 0 && $wrapper.find('.cut-editor-scroll-actions').length === 0) {
-                const scrollActionsHtml = `
-                <div class="cut-editor-scroll-actions" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; margin-bottom: 6px;">
-                    <div class="cut-scroll-btn cut-scroll-top menu_button margin0" title="一键回到顶部">
-                        <i class="fa-solid fa-arrow-up"></i>
+        const isCustomCss = dataFor === 'customCSS';
+
+        if ($wrapper.find('.cut-editor-search-replace-bar').length === 0) {
+            const searchBarHtml = `
+            <div class="cut-editor-search-replace-bar">
+                <div class="cut-search-row">
+                    <div class="cut-input-group">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" class="cut-search-input text_pole margin0" placeholder="Find... (Ctrl+F)">
+                        <span class="cut-search-count">0/0</span>
                     </div>
-                    <div class="cut-scroll-btn cut-scroll-bottom menu_button margin0" title="一键回到底部">
-                        <i class="fa-solid fa-arrow-down"></i>
+                    <div class="cut-search-btn-group">
+                        <button type="button" class="cut-search-prev menu_button margin0" title="Previous match (Shift+Enter)"><i class="fa-solid fa-chevron-up"></i></button>
+                        <button type="button" class="cut-search-next menu_button margin0" title="Next match (Enter)"><i class="fa-solid fa-chevron-down"></i></button>
+                        <button type="button" class="cut-search-case menu_button margin0" title="Match case">Aa</button>
+                        <button type="button" class="cut-search-regex menu_button margin0" title="Regular expression">.*</button>
+                        <button type="button" class="cut-toggle-replace menu_button margin0" title="Toggle replace toolbar"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
+                        ${isCustomCss ? `
+                        <button type="button" class="cut-apply-css-btn menu_button margin0 ${hasUnappliedCssChanges ? 'has-unapplied' : ''}" title="Apply CSS to page">
+                            <i class="fa-solid fa-check"></i>
+                        </button>
+                        ` : ''}
                     </div>
                 </div>
-                `;
-                $wrapper.prepend(scrollActionsHtml);
+                <div class="cut-replace-row" style="display: none;">
+                    <div class="cut-input-group">
+                        <i class="fa-solid fa-repeat replace-icon"></i>
+                        <input type="text" class="cut-replace-input text_pole margin0" placeholder="Replace with...">
+                    </div>
+                    <div class="cut-replace-btn-group">
+                        <button type="button" class="cut-replace-btn menu_button margin0" title="Replace current match"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
+                        <button type="button" class="cut-replace-all-btn menu_button margin0" title="Replace all matches"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                </div>
+            </div>
+            `;
 
-                $wrapper.find('.cut-scroll-top').off('click.cut').on('click.cut', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const el = $textarea[0];
-                    if (el) {
-                        el.scrollTop = 0;
-                        el.setSelectionRange(0, 0);
-                        el.focus();
-                    }
-                });
+            $wrapper.prepend(searchBarHtml);
+            bindSearchReplaceEvents($wrapper, $textarea);
+        }
 
-                $wrapper.find('.cut-scroll-bottom').off('click.cut').on('click.cut', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const el = $textarea[0];
-                    if (el) {
-                        el.scrollTop = el.scrollHeight;
-                        el.setSelectionRange(el.value.length, el.value.length);
-                        el.focus();
-                    }
-                });
-            }
+        const isRegexReplace = dataFor.includes('replace') || dataFor.includes('cut_regex_field');
+        if (isRegexReplace && $wrapper.find('.cut-editor-scroll-actions').length === 0) {
+            const scrollActionsHtml = `
+            <div class="cut-editor-scroll-actions" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; margin-bottom: 6px;">
+                <div class="cut-scroll-btn cut-scroll-top menu_button margin0" title="一键回到顶部">
+                    <i class="fa-solid fa-arrow-up"></i>
+                </div>
+                <div class="cut-scroll-btn cut-scroll-bottom menu_button margin0" title="一键回到底部">
+                    <i class="fa-solid fa-arrow-down"></i>
+                </div>
+            </div>
+            `;
+            $wrapper.prepend(scrollActionsHtml);
+
+            $wrapper.find('.cut-scroll-top').off('click.cut').on('click.cut', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const el = $textarea[0];
+                if (el) {
+                    el.scrollTop = 0;
+                    el.setSelectionRange(0, 0);
+                    el.focus();
+                }
+            });
+
+            $wrapper.find('.cut-scroll-bottom').off('click.cut').on('click.cut', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const el = $textarea[0];
+                if (el) {
+                    el.scrollTop = el.scrollHeight;
+                    el.setSelectionRange(el.value.length, el.value.length);
+                    el.focus();
+                }
+            });
         }
     });
 }
@@ -597,7 +882,7 @@ function applyModule2Settings() {
                     $drawerContent.append($presetItems);
                 }
             }
-            if ($promptManager.length > 0) {
+            if ($promptManager.length > 0 && $drawer.next()[0] !== $promptManager[0]) {
                 $drawer.after($promptManager);
             }
             $drawer.show();
@@ -653,7 +938,7 @@ function applyModule2Settings() {
         }
     }
 
-    // Feature 4: Fold Persona Management Settings ("设定设置") [JS]
+    // Feature 4: Fold Persona Management Settings
     const shouldFoldPersona = isModule2Enabled && settings.module2.foldPersonaSettings;
     const $personaRightCol = $('.persona_management_right_column');
 
@@ -699,7 +984,7 @@ function applyModule2Settings() {
         }
     }
 
-    // Feature 5: Fold Custom CSS ("自定义样式") [JS]
+    // Feature 5: Fold Custom CSS
     const shouldFoldCustomCss = isModule2Enabled && settings.module2.foldCustomCss;
     const $customCssBlock = $('#CustomCSS-block');
     const $uiPresetsBlock = $('#UI-presets-block');
@@ -730,7 +1015,7 @@ function applyModule2Settings() {
                 }
                 $cssDrawer = $('#cut_m2_custom_css_drawer');
             } else {
-                if ($uiPresetsBlock.length > 0) {
+                if ($uiPresetsBlock.length > 0 && $uiPresetsBlock.next()[0] !== $cssDrawer[0]) {
                     $uiPresetsBlock.after($cssDrawer);
                 }
             }
@@ -739,6 +1024,7 @@ function applyModule2Settings() {
             if ($cssDrawerContent.find('#CustomCSS-block').length === 0) {
                 $cssDrawerContent.append($customCssBlock);
             }
+            $customCssBlock.find('.cut-css-inline-bar').remove();
             $cssDrawer.show();
         } else {
             if ($cssDrawer.length > 0 && $cssDrawer.is(':visible')) {
@@ -751,7 +1037,7 @@ function applyModule2Settings() {
         }
     }
 
-    // Feature 6: Fold UI Effects ("界面效果") [JS]
+    // Feature 6: Fold UI Effects
     const shouldFoldUiEffects = isModule2Enabled && settings.module2.foldUiEffects;
     const $avatarChatDisplay = $('div[name="AvatarAndChatDisplay"]');
     if ($avatarChatDisplay.length > 0) {
@@ -779,7 +1065,7 @@ function applyModule2Settings() {
                 $effectsDrawer = $('#cut_m2_ui_effects_drawer');
             } else {
                 const $cssDrawer = $('#cut_m2_custom_css_drawer');
-                if ($cssDrawer.length > 0) {
+                if ($cssDrawer.length > 0 && $cssDrawer.next()[0] !== $effectsDrawer[0]) {
                     $cssDrawer.after($effectsDrawer);
                 }
             }
@@ -801,7 +1087,7 @@ function applyModule2Settings() {
         }
     }
 
-    // Feature 7: Fold Theme Toggles ("主题开关") [JS]
+    // Feature 7: Fold Theme Toggles
     const shouldFoldThemeToggles = isModule2Enabled && settings.module2.foldThemeToggles;
     const $fontBlurBlock = $('div[name="FontBlurChatWidthBlock"]');
     const $themeToggles = $('div[name="themeToggles"]');
@@ -847,7 +1133,7 @@ function applyModule2Settings() {
         }
     }
 
-    // Feature 8: Fold User Advanced ("高级设置") [JS]
+    // Feature 8: Fold User Advanced
     const shouldFoldUserAdvanced = isModule2Enabled && settings.module2.foldUserAdvanced;
     const $col2 = $('div[name="UserSettingsSecondColumn"]');
     const $col3 = $('div[name="UserSettingsThirdColumn"]');
@@ -876,7 +1162,7 @@ function applyModule2Settings() {
                 }
                 $advDrawer = $('#cut_m2_user_advanced_drawer');
             } else {
-                if ($togglesDrawer.length > 0) {
+                if ($togglesDrawer.length > 0 && $togglesDrawer.next()[0] !== $advDrawer[0]) {
                     $togglesDrawer.after($advDrawer);
                 }
             }
@@ -1452,6 +1738,35 @@ function fallbackCopyText(text) {
     return successful;
 }
 
+function applyCustomCssFromMaximized($maximizedTextarea) {
+    const cssVal = $maximizedTextarea.val() || '';
+    const $customCss = $('#customCSS');
+    if ($customCss.length > 0) {
+        $customCss.val(cssVal);
+        $customCss[0].dispatchEvent(new Event('input', { bubbles: true }));
+        $customCss[0].dispatchEvent(new Event('change', { bubbles: true }));
+        if (typeof saveSettingsDebounced === 'function') {
+            saveSettingsDebounced();
+        }
+        $maximizedTextarea.closest('.cut-editor-search-replace-bar').find('.cut-apply-css-btn').removeClass('has-unapplied');
+        if (window.toastr) {
+            toastr.success('自定义样式已成功应用！');
+        }
+    }
+}
+
+// Bind Apply Custom CSS Button Action in Fullscreen Editor
+function bindApplyCustomCssAction() {
+    $(document).off('click.cut_apply_css', '.cut-editor-search-replace-bar .cut-apply-css-btn').on('click.cut_apply_css', '.cut-editor-search-replace-bar .cut-apply-css-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const $maximized = $(this).closest('.cut-editor-search-replace-bar').parent().find('.maximized_textarea');
+        if ($maximized.length > 0) {
+            applyCustomCssFromMaximized($maximized);
+        }
+    });
+}
+
 // Bind Copy Custom CSS Button Action
 function bindCopyCustomCssAction() {
     $(document).off('click.cut_copy_css', '#cut_m2_custom_css_drawer .cut-copy-css-btn').on('click.cut_copy_css', '#cut_m2_custom_css_drawer .cut-copy-css-btn', function (e) {
@@ -1488,6 +1803,7 @@ jQuery(async () => {
     initPastePerformanceFix();
     applySettings();
     bindCopyCustomCssAction();
+    bindApplyCustomCssAction();
 
     const checkDrawerInterval = setInterval(() => {
         applyPromptManagerMaximizeButton();
