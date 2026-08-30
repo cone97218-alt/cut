@@ -28,6 +28,7 @@ const defaultSettings = {
         foldUiEffects: true,
         foldThemeToggles: true,
         foldUserAdvanced: true,
+        enableFullscreenEditor: true,
         enablePersonaHeight: true,
         personaHeight: 450,
         enableCharDescHeight: true,
@@ -916,6 +917,16 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
  * Injects Search & Replace toolbar in fullscreen textareas
  */
 function applyMaximizedEditorScrollActions() {
+    const settings = extension_settings[extensionName];
+    const isMasterEnabled = settings && settings.enabled;
+    const isModule2Enabled = isMasterEnabled && settings.module2;
+    const shouldEnableFullscreenEditor = isModule2Enabled && (settings.module2.enableFullscreenEditor !== false);
+
+    if (!shouldEnableFullscreenEditor) {
+        $('.cut-editor-search-replace-bar').remove();
+        return;
+    }
+
     $('.maximized_textarea').each(function () {
         const $textarea = $(this);
         const $wrapper = $textarea.parent();
@@ -1741,6 +1752,15 @@ function renderSettingsUI() {
                             <div class="cut-option-desc">将用户设置右侧的角色处理与聊天/消息处理收纳进“高级设置”折叠条</div>
 
                             <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_enable_fullscreen_editor">
+                                    <input type="checkbox" id="cut_m2_enable_fullscreen_editor">
+                                    <span>全屏编辑增强</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">在全屏文本编辑框顶部提供搜索替换、撤回重做与快速回顶底工具栏</div>
+
+                            <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_persona_height_toggle">
                                     <input type="checkbox" id="cut_m2_persona_height_toggle">
                                     <span>人设概述高度</span>
@@ -1845,6 +1865,7 @@ function renderSettingsUI() {
     $('#cut_m2_fold_ui_effects').prop('checked', settings.module2.foldUiEffects);
     $('#cut_m2_fold_theme_toggles').prop('checked', settings.module2.foldThemeToggles);
     $('#cut_m2_fold_user_advanced').prop('checked', settings.module2.foldUserAdvanced);
+    $('#cut_m2_enable_fullscreen_editor').prop('checked', settings.module2.enableFullscreenEditor !== false);
 
     // Height Toggles & Input Values
     $('#cut_m2_persona_height_toggle').prop('checked', settings.module2.enablePersonaHeight);
@@ -1977,6 +1998,12 @@ function renderSettingsUI() {
 
     $('#cut_m2_fold_user_advanced').off('change').on('change', function () {
         settings.module2.foldUserAdvanced = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_enable_fullscreen_editor').off('change').on('change', function () {
+        settings.module2.enableFullscreenEditor = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
