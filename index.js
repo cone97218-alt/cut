@@ -1351,10 +1351,10 @@ function applyModule2Settings() {
 
     // Feature 7: Fold Theme Toggles
     const shouldFoldThemeToggles = isModule2Enabled && settings.module2.foldThemeToggles;
-    const $fontBlurBlock = $('div[name="FontBlurChatWidthBlock"]');
-    const $themeToggles = $('div[name="themeToggles"]');
+    let $fontBlurBlock = $('[name="FontBlurChatWidthBlock"], #FontBlurChatWidthBlock');
+    let $themeToggles = $('[name="themeToggles"], #themeToggles, #theme_toggles');
 
-    if ($fontBlurBlock.length > 0 || $themeToggles.length > 0) {
+    if ($fontBlurBlock.length > 0 || $themeToggles.length > 0 || ($col1.length > 0 && shouldFoldThemeToggles)) {
         let $togglesDrawer = $('#cut_m2_theme_toggles_drawer');
 
         if (shouldFoldThemeToggles) {
@@ -1368,16 +1368,33 @@ function applyModule2Settings() {
                     <div class="inline-drawer-content" style="display: none;"></div>
                 </div>
                 `;
-                if ($col1.length > 0) {
+                const $effectsDrawer = $('#cut_m2_ui_effects_drawer');
+                const $cssDrawer = $('#cut_m2_custom_css_drawer');
+                if ($effectsDrawer.length > 0) {
+                    $effectsDrawer.after(togglesDrawerHtml);
+                } else if ($cssDrawer.length > 0) {
+                    $cssDrawer.after(togglesDrawerHtml);
+                } else if ($uiPresetsBlock.length > 0) {
+                    $uiPresetsBlock.after(togglesDrawerHtml);
+                } else if ($col1.length > 0) {
                     $col1.append(togglesDrawerHtml);
                 }
                 $togglesDrawer = $('#cut_m2_theme_toggles_drawer');
+            } else {
+                const $effectsDrawer = $('#cut_m2_ui_effects_drawer');
+                if ($effectsDrawer.length > 0 && $effectsDrawer.next()[0] !== $togglesDrawer[0]) {
+                    $effectsDrawer.after($togglesDrawer);
+                }
             }
 
             const $togglesDrawerContent = $togglesDrawer.find('>.inline-drawer-content');
             $col1.find('hr').hide();
-            if ($togglesDrawerContent.find('div[name="FontBlurChatWidthBlock"], div[name="themeToggles"]').length === 0) {
-                const $itemsToAppend = $fontBlurBlock.add($themeToggles);
+            if ($togglesDrawerContent.children().length === 0) {
+                let $itemsToAppend = $fontBlurBlock.add($themeToggles);
+                if ($col1.length > 0) {
+                    const $col1Remaining = $col1.children().not('#UI-presets-block, #CustomCSS-block, #cut_m2_custom_css_drawer, [name="AvatarAndChatDisplay"], #cut_m2_ui_effects_drawer, #cut_m2_theme_toggles_drawer, #cut_m2_user_advanced_drawer, hr');
+                    $itemsToAppend = $itemsToAppend.add($col1Remaining);
+                }
                 if ($itemsToAppend.length > 0) {
                     $togglesDrawerContent.append($itemsToAppend);
                 }
@@ -1385,7 +1402,7 @@ function applyModule2Settings() {
             $togglesDrawer.show();
         } else {
             if ($togglesDrawer.length > 0 && $togglesDrawer.is(':visible')) {
-                const $itemsToRestore = $togglesDrawer.find('div[name="FontBlurChatWidthBlock"], div[name="themeToggles"]');
+                const $itemsToRestore = $togglesDrawer.find('>.inline-drawer-content').children();
                 if ($itemsToRestore.length > 0 && $col1.length > 0) {
                     $col1.append($itemsToRestore);
                 }

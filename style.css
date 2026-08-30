@@ -219,6 +219,44 @@ body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_blo
     box-sizing: border-box !important;
 }
 
+#cut_m2_ui_effects_drawer .inline-drawer-content:not([style*="display: none"]),
+#cut_m2_theme_toggles_drawer .inline-drawer-content:not([style*="display: none"]),
+#cut_m2_user_advanced_drawer .inline-drawer-content:not([style*="display: none"]) {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    overflow: visible !important;
+}
+
+#cut_m2_ui_effects_drawer .inline-drawer-content > *,
+#cut_m2_theme_toggles_drawer .inline-drawer-content > *,
+#cut_m2_user_advanced_drawer .inline-drawer-content > * {
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+}
+
+#cut_m2_ui_effects_drawer [name="AvatarAndChatDisplay"],
+#cut_m2_theme_toggles_drawer [name="FontBlurChatWidthBlock"],
+#cut_m2_theme_toggles_drawer [name="themeToggles"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+}
+
+#cut_m2_theme_toggles_drawer .range-block,
+#cut_m2_theme_toggles_drawer .checkbox_label {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
 #cut_m2_custom_css_drawer #CustomCSS-block > h4 {
     display: none !important;
 }
