@@ -359,7 +359,7 @@ function applyPromptManagerEntryParamsFolding() {
 }
 
 /**
- * Enhances Regex Editor instances by adding full-screen maximize icons
+ * Enhances Regex Editor instances by adding full-screen maximize and copy icons
  */
 function applyRegexEditorEnhancements() {
     $('.regex_editor, .popup:has(.find_regex), form:has(.find_regex)').each(function (editorIdx) {
@@ -372,7 +372,7 @@ function applyRegexEditorEnhancements() {
             $editor.attr('data-cut-uid', editorUid);
         }
 
-        const attachFieldMaximize = ($inputEl, fieldName) => {
+        const attachFieldActions = ($inputEl, fieldName) => {
             if ($inputEl.length === 0) return;
 
             let fieldId = $inputEl.attr('id');
@@ -391,16 +391,23 @@ function applyRegexEditorEnhancements() {
                     $labelRow = $fieldContainer.find('.cut-regex-label-row');
                 }
 
-                let $maxBtn = $labelRow.find('.editor_maximize');
-                if ($maxBtn.length === 0) {
+                let $actions = $labelRow.find('.cut-regex-actions');
+                if ($actions.length === 0) {
                     $labelRow.append(`
-                        <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" 
-                           data-for="${fieldId}" 
-                           title="展开全屏编辑器" 
-                           style="cursor: pointer; opacity: 0.85;"></i>
+                        <div class="cut-regex-actions">
+                            <i class="cut-copy-regex-btn fa-solid fa-copy right_menu_button margin0" 
+                               data-for="${fieldId}" 
+                               title="一键复制" 
+                               style="cursor: pointer; opacity: 0.85;"></i>
+                            <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" 
+                               data-for="${fieldId}" 
+                               title="展开全屏编辑器" 
+                               style="cursor: pointer; opacity: 0.85;"></i>
+                        </div>
                     `);
                 } else {
-                    $maxBtn.attr('data-for', fieldId);
+                    $actions.find('.cut-copy-regex-btn').attr('data-for', fieldId);
+                    $actions.find('.editor_maximize').attr('data-for', fieldId);
                 }
             }
 
@@ -408,9 +415,9 @@ function applyRegexEditorEnhancements() {
             $inputEl.parent().css('width', '100%');
         };
 
-        attachFieldMaximize($editor.find('.find_regex'), 'find');
-        attachFieldMaximize($editor.find('.regex_replace_string'), 'replace');
-        attachFieldMaximize($editor.find('.regex_trim_strings'), 'trim');
+        attachFieldActions($editor.find('.find_regex'), 'find');
+        attachFieldActions($editor.find('.regex_replace_string'), 'replace');
+        attachFieldActions($editor.find('.regex_trim_strings'), 'trim');
     });
 }
 
@@ -2202,6 +2209,36 @@ function bindCopyCustomCssAction() {
     });
 }
 
+// Bind Copy Regex Field Button Action
+function bindCopyRegexAction() {
+    $(document).off('click.cut_copy_regex', '.cut-copy-regex-btn').on('click.cut_copy_regex', '.cut-copy-regex-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const fieldId = $(this).attr('data-for');
+        const $target = $(`#${fieldId}`);
+        const text = $target.val() || '';
+
+        if (!text.trim()) {
+            if (window.toastr) toastr.info('内容为空');
+            return;
+        }
+
+        const $icon = $(this);
+
+        copyToClipboard(text).then(() => {
+            if (window.toastr) toastr.success('已复制到剪贴板！');
+            $icon.removeClass('fa-copy').addClass('fa-check').css('color', '#4caf50');
+            setTimeout(() => {
+                $icon.removeClass('fa-check').addClass('fa-copy').css('color', '');
+            }, 1500);
+        }).catch((err) => {
+            console.error('[页面精简] 复制失败:', err);
+            if (window.toastr) toastr.error('复制失败');
+        });
+    });
+}
+
 // Initialize Extension
 jQuery(async () => {
     loadSettings();
@@ -2209,6 +2246,7 @@ jQuery(async () => {
     initPastePerformanceFix();
     applySettings();
     bindCopyCustomCssAction();
+    bindCopyRegexAction();
     bindApplyCustomCssAction();
 
     const checkDrawerInterval = setInterval(() => {

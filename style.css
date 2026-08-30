@@ -277,7 +277,8 @@ body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_blo
 }
 
 .editor_maximize,
-.cut-copy-css-btn {
+.cut-copy-css-btn,
+.cut-copy-regex-btn {
     font-family: "Font Awesome 6 Free", "FontAwesome" !important;
     font-weight: 900 !important;
     display: inline-block !important;
@@ -317,7 +318,19 @@ body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_blo
     pointer-events: auto !important;
 }
 
-.cut-regex-label-row .editor_maximize {
+.cut-regex-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-left: auto !important;
+    white-space: nowrap !important;
+}
+
+.cut-regex-actions .editor_maximize,
+.cut-regex-actions .cut-copy-regex-btn,
+.cut-regex-label-row .editor_maximize,
+.cut-regex-label-row .cut-copy-regex-btn {
     background: transparent !important;
     background-color: transparent !important;
     border: none !important;
@@ -328,10 +341,13 @@ body:not(.cut-avatar-height-active) #cut_m2_user_avatars_drawer #user_avatar_blo
     cursor: pointer !important;
     pointer-events: auto !important;
     z-index: 5 !important;
-    transition: opacity 0.2s ease, transform 0.2s ease !important;
+    transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease !important;
 }
 
-.cut-regex-label-row .editor_maximize:hover {
+.cut-regex-actions .editor_maximize:hover,
+.cut-regex-actions .cut-copy-regex-btn:hover,
+.cut-regex-label-row .editor_maximize:hover,
+.cut-regex-label-row .cut-copy-regex-btn:hover {
     opacity: 1 !important;
     transform: scale(1.1) !important;
 }
