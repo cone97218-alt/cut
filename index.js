@@ -362,16 +362,25 @@ function applyPromptManagerEntryParamsFolding() {
  * Enhances Regex Editor instances by adding full-screen maximize icons
  */
 function applyRegexEditorEnhancements() {
-    $('.regex_editor, #regex_editor_template').each(function () {
+    $('.regex_editor, .popup:has(.find_regex), form:has(.find_regex)').each(function (editorIdx) {
         const $editor = $(this);
+        if ($editor.is('#regex_editor_template')) return;
 
-        const attachFieldMaximize = ($inputEl, fieldIdPrefix) => {
+        let editorUid = $editor.attr('data-cut-uid');
+        if (!editorUid) {
+            editorUid = `cut_re_${Date.now()}_${editorIdx}`;
+            $editor.attr('data-cut-uid', editorUid);
+        }
+
+        const attachFieldMaximize = ($inputEl, fieldName) => {
             if ($inputEl.length === 0) return;
 
-            if (!$inputEl.attr('id')) {
-                $inputEl.attr('id', fieldIdPrefix + '_' + Math.random().toString(36).substr(2, 6));
+            let fieldId = $inputEl.attr('id');
+            if (!fieldId) {
+                fieldId = `${editorUid}_${fieldName}`;
+                $inputEl.attr('id', fieldId);
             }
-            const fieldId = $inputEl.attr('id');
+
             const $fieldContainer = $inputEl.closest('.flex1');
             const $label = $fieldContainer.find('label').first();
 
@@ -382,13 +391,16 @@ function applyRegexEditorEnhancements() {
                     $labelRow = $fieldContainer.find('.cut-regex-label-row');
                 }
 
-                if ($labelRow.find('.editor_maximize').length === 0) {
+                let $maxBtn = $labelRow.find('.editor_maximize');
+                if ($maxBtn.length === 0) {
                     $labelRow.append(`
                         <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" 
                            data-for="${fieldId}" 
                            title="展开全屏编辑器" 
                            style="cursor: pointer; opacity: 0.85;"></i>
                     `);
+                } else {
+                    $maxBtn.attr('data-for', fieldId);
                 }
             }
 
@@ -396,9 +408,9 @@ function applyRegexEditorEnhancements() {
             $inputEl.parent().css('width', '100%');
         };
 
-        attachFieldMaximize($editor.find('.find_regex'), 'cut_regex_field_find');
-        attachFieldMaximize($editor.find('.regex_replace_string'), 'cut_regex_field_replace');
-        attachFieldMaximize($editor.find('.regex_trim_strings'), 'cut_regex_field_trim');
+        attachFieldMaximize($editor.find('.find_regex'), 'find');
+        attachFieldMaximize($editor.find('.regex_replace_string'), 'replace');
+        attachFieldMaximize($editor.find('.regex_trim_strings'), 'trim');
     });
 }
 
