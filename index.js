@@ -1313,6 +1313,7 @@ function applyModule2Settings() {
     const $customCssBlock = $('#CustomCSS-block');
     const $uiPresetsBlock = $('#UI-presets-block');
     const $col1 = $('div[name="UserSettingsFirstColumn"]');
+    const $themeColors = $('#theme_colors, #color-picker-block').closest('.inline-drawer');
 
     if ($customCssBlock.length > 0) {
         let $cssDrawer = $('#cut_m2_custom_css_drawer');
@@ -1351,10 +1352,11 @@ function applyModule2Settings() {
             $customCssBlock.find('.cut-css-inline-bar').remove();
             $cssDrawer.show();
 
-            // Move #theme_colors to sit immediately after the custom CSS drawer
-            const $themeColorsEl = $('#theme_colors');
-            if ($themeColorsEl.length > 0 && $cssDrawer.next()[0] !== $themeColorsEl[0]) {
-                $cssDrawer.after($themeColorsEl);
+            // Place native Theme Colors drawer immediately below Custom CSS drawer
+            if ($themeColors.length > 0 && $cssDrawer.length > 0) {
+                if ($cssDrawer.next()[0] !== $themeColors[0]) {
+                    $cssDrawer.after($themeColors);
+                }
             }
         } else {
             if ($cssDrawer.length > 0 && $cssDrawer.is(':visible')) {
@@ -1366,7 +1368,6 @@ function applyModule2Settings() {
             }
         }
     }
-
 
     // Feature 6: Fold UI Effects
     const shouldFoldUiEffects = isModule2Enabled && settings.module2.foldUiEffects;
@@ -1385,11 +1386,10 @@ function applyModule2Settings() {
                     <div class="inline-drawer-content" style="display: none;"></div>
                 </div>
                 `;
-                const $cssDrawer = $('#cut_m2_custom_css_drawer');
-                const $themeColorsAnchor = $('#theme_colors');
-                const $anchor = $themeColorsAnchor.length > 0 ? $themeColorsAnchor : $cssDrawer;
-                if ($anchor.length > 0) {
-                    $anchor.after(effectsDrawerHtml);
+                if ($themeColors.length > 0) {
+                    $themeColors.after(effectsDrawerHtml);
+                } else if ($('#cut_m2_custom_css_drawer').length > 0) {
+                    $('#cut_m2_custom_css_drawer').after(effectsDrawerHtml);
                 } else if ($uiPresetsBlock.length > 0) {
                     $uiPresetsBlock.after(effectsDrawerHtml);
                 } else if ($col1.length > 0) {
@@ -1397,9 +1397,7 @@ function applyModule2Settings() {
                 }
                 $effectsDrawer = $('#cut_m2_ui_effects_drawer');
             } else {
-                const $cssDrawer = $('#cut_m2_custom_css_drawer');
-                const $themeColorsAnchor = $('#theme_colors');
-                const $anchor = $themeColorsAnchor.length > 0 ? $themeColorsAnchor : $cssDrawer;
+                const $anchor = $themeColors.length > 0 ? $themeColors : $('#cut_m2_custom_css_drawer');
                 if ($anchor.length > 0 && $anchor.next()[0] !== $effectsDrawer[0]) {
                     $anchor.after($effectsDrawer);
                 }
@@ -1428,7 +1426,6 @@ function applyModule2Settings() {
     let $themeToggles = $('[name="themeToggles"], #themeToggles, #theme_toggles');
 
     // Ensure #theme_colors is NEVER inside #cut_m2_theme_toggles_drawer
-    const $themeColors = $('#theme_colors');
     const $existingTogglesDrawer = $('#cut_m2_theme_toggles_drawer');
     if ($themeColors.length > 0 && $existingTogglesDrawer.length > 0 && $themeColors.closest('#cut_m2_theme_toggles_drawer').length > 0) {
         $existingTogglesDrawer.before($themeColors);
@@ -1448,15 +1445,13 @@ function applyModule2Settings() {
                     <div class="inline-drawer-content" style="display: none;"></div>
                 </div>
                 `;
-                const $themeColorsBlock = $('#theme_colors');
                 const $effectsDrawer = $('#cut_m2_ui_effects_drawer');
-                const $cssDrawer = $('#cut_m2_custom_css_drawer');
-                if ($themeColorsBlock.length > 0) {
-                    $themeColorsBlock.after(togglesDrawerHtml);
-                } else if ($effectsDrawer.length > 0) {
+                if ($effectsDrawer.length > 0) {
                     $effectsDrawer.after(togglesDrawerHtml);
-                } else if ($cssDrawer.length > 0) {
-                    $cssDrawer.after(togglesDrawerHtml);
+                } else if ($themeColors.length > 0) {
+                    $themeColors.after(togglesDrawerHtml);
+                } else if ($('#cut_m2_custom_css_drawer').length > 0) {
+                    $('#cut_m2_custom_css_drawer').after(togglesDrawerHtml);
                 } else if ($uiPresetsBlock.length > 0) {
                     $uiPresetsBlock.after(togglesDrawerHtml);
                 } else if ($col1.length > 0) {
@@ -1464,12 +1459,10 @@ function applyModule2Settings() {
                 }
                 $togglesDrawer = $('#cut_m2_theme_toggles_drawer');
             } else {
-                const $themeColorsBlock = $('#theme_colors');
                 const $effectsDrawer = $('#cut_m2_ui_effects_drawer');
-                if ($themeColorsBlock.length > 0 && $themeColorsBlock.next()[0] !== $togglesDrawer[0]) {
-                    $themeColorsBlock.after($togglesDrawer);
-                } else if ($effectsDrawer.length > 0 && $effectsDrawer.next()[0] !== $togglesDrawer[0] && $themeColorsBlock.length === 0) {
-                    $effectsDrawer.after($togglesDrawer);
+                const $anchor = $effectsDrawer.length > 0 ? $effectsDrawer : ($themeColors.length > 0 ? $themeColors : $('#cut_m2_custom_css_drawer'));
+                if ($anchor.length > 0 && $anchor.next()[0] !== $togglesDrawer[0]) {
+                    $anchor.after($togglesDrawer);
                 }
             }
 
