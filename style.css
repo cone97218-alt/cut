@@ -73,7 +73,7 @@ body.cut-mobile-anti-jump #send_textarea,
 body.cut-mobile-anti-jump .text_pole,
 body.cut-mobile-anti-jump textarea {
     overscroll-behavior: contain !important;
-    touch-action: pan-y !important;
+    touch-action: manipulation !important;
     -webkit-overflow-scrolling: touch !important;
 }
 
