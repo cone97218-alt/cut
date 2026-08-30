@@ -1350,6 +1350,12 @@ function applyModule2Settings() {
             }
             $customCssBlock.find('.cut-css-inline-bar').remove();
             $cssDrawer.show();
+
+            // Move #theme_colors to sit immediately after the custom CSS drawer
+            const $themeColorsEl = $('#theme_colors');
+            if ($themeColorsEl.length > 0 && $cssDrawer.next()[0] !== $themeColorsEl[0]) {
+                $cssDrawer.after($themeColorsEl);
+            }
         } else {
             if ($cssDrawer.length > 0 && $cssDrawer.is(':visible')) {
                 const $col2 = $('div[name="UserSettingsSecondColumn"]');
@@ -1360,6 +1366,7 @@ function applyModule2Settings() {
             }
         }
     }
+
 
     // Feature 6: Fold UI Effects
     const shouldFoldUiEffects = isModule2Enabled && settings.module2.foldUiEffects;
@@ -1379,8 +1386,10 @@ function applyModule2Settings() {
                 </div>
                 `;
                 const $cssDrawer = $('#cut_m2_custom_css_drawer');
-                if ($cssDrawer.length > 0) {
-                    $cssDrawer.after(effectsDrawerHtml);
+                const $themeColorsAnchor = $('#theme_colors');
+                const $anchor = $themeColorsAnchor.length > 0 ? $themeColorsAnchor : $cssDrawer;
+                if ($anchor.length > 0) {
+                    $anchor.after(effectsDrawerHtml);
                 } else if ($uiPresetsBlock.length > 0) {
                     $uiPresetsBlock.after(effectsDrawerHtml);
                 } else if ($col1.length > 0) {
@@ -1389,8 +1398,10 @@ function applyModule2Settings() {
                 $effectsDrawer = $('#cut_m2_ui_effects_drawer');
             } else {
                 const $cssDrawer = $('#cut_m2_custom_css_drawer');
-                if ($cssDrawer.length > 0 && $cssDrawer.next()[0] !== $effectsDrawer[0]) {
-                    $cssDrawer.after($effectsDrawer);
+                const $themeColorsAnchor = $('#theme_colors');
+                const $anchor = $themeColorsAnchor.length > 0 ? $themeColorsAnchor : $cssDrawer;
+                if ($anchor.length > 0 && $anchor.next()[0] !== $effectsDrawer[0]) {
+                    $anchor.after($effectsDrawer);
                 }
             }
 
