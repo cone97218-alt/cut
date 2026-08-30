@@ -68,7 +68,6 @@ body.cut-mobile-anti-jump {
     overscroll-behavior-y: none !important;
 }
 
-body.cut-mobile-anti-jump #send_form,
 body.cut-mobile-anti-jump #send_textarea,
 body.cut-mobile-anti-jump .text_pole,
 body.cut-mobile-anti-jump textarea {
@@ -77,24 +76,7 @@ body.cut-mobile-anti-jump textarea {
     -webkit-overflow-scrolling: touch !important;
 }
 
-body.cut-mobile-anti-jump #form_sheld:has(#send_textarea:focus, #send_textarea:not(:placeholder-shown)),
-body.cut-mobile-anti-jump #send_form:has(#send_textarea:focus, #send_textarea:not(:placeholder-shown)) {
-    position: sticky !important;
-    bottom: 0 !important;
-    z-index: 99 !important;
-    transform: translateZ(0) !important;
-    will-change: transform !important;
-}
-
 @media (max-width: 768px) {
-    body.cut-mobile-anti-jump #send_form {
-        position: sticky !important;
-        bottom: 0 !important;
-        z-index: 99 !important;
-        transform: translateZ(0) !important;
-        will-change: transform !important;
-    }
-    
     body.cut-mobile-anti-jump #send_textarea {
         resize: none !important;
     }
