@@ -268,16 +268,23 @@ function initMobileCaretAnchor() {
     isCaretAnchorInstalled = true;
 
     // touchend fires after the browser finalises tap-to-caret mapping, giving us the true selectionStart
-    const captureOnTouchEnd = (e) => {
+    document.addEventListener('touchend', (e) => {
         const target = e.target;
         if (!target || (target.tagName !== 'TEXTAREA' && target.tagName !== 'INPUT')) return;
+
+        lastDirectInputInteraction = Date.now();
         lastCaretTouchTarget = target;
-        // Read selectionStart in the same microtask tick; no setTimeout needed here
-        if (typeof target.selectionStart === 'number') {
-            lastCaretPos = target.selectionStart;
-        }
-    };
-    document.addEventListener('touchend', captureOnTouchEnd, { capture: true, passive: true });
+
+        // Defer reading selectionStart by one rAF frame: if the textarea was NOT previously
+        // focused, the browser sets the caret AFTER the focus event fires (which happens
+        // asynchronously after touchend). Reading synchronously on touchend would give us the
+        // stale previous-caret position rather than the tap's true target offset.
+        requestAnimationFrame(() => {
+            if (target === document.activeElement && typeof target.selectionStart === 'number') {
+                lastCaretPos = target.selectionStart;
+            }
+        });
+    }, { capture: true, passive: true });
 
     if (!window.visualViewport) return; // desktop fallback — nothing to do
 
