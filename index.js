@@ -288,8 +288,70 @@ function loadSettings() {
     }
 }
 
+// Mobile Long-Text Caret & Viewport Anchor State
+let isCaretAnchorInstalled = false;
+let lastCaretTouchTarget = null;
+let lastCaretPos = null;
+let caretAnchorTimer = null;
+
 /**
- * Optimizes mobile input typing behavior
+ * Ensures clicked caret position in long text remains accurately anchored
+ * when the mobile virtual keyboard pops up and shrinks the viewport
+ */
+function initMobileCaretAnchor() {
+    if (isCaretAnchorInstalled) return;
+    isCaretAnchorInstalled = true;
+
+    const recordCaretIntent = (e) => {
+        const target = e.target;
+        if (!target || (target.tagName !== 'TEXTAREA' && target.tagName !== 'INPUT')) return;
+
+        lastCaretTouchTarget = target;
+        setTimeout(() => {
+            if (target === document.activeElement && typeof target.selectionStart === 'number') {
+                lastCaretPos = target.selectionStart;
+            }
+        }, 50);
+    };
+
+    document.addEventListener('touchstart', recordCaretIntent, { capture: true, passive: true });
+    document.addEventListener('pointerdown', recordCaretIntent, { capture: true, passive: true });
+    document.addEventListener('click', recordCaretIntent, { capture: true, passive: true });
+
+    // When virtual keyboard resizes the viewport, firmly re-anchor the caret and textarea scroll
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+            const settings = extension_settings[extensionName];
+            const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
+            if (!isEnabled) return;
+
+            const target = document.activeElement;
+            if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') && lastCaretPos !== null && target === lastCaretTouchTarget) {
+                clearTimeout(caretAnchorTimer);
+                caretAnchorTimer = setTimeout(() => {
+                    if (target === document.activeElement && typeof target.setSelectionRange === 'function') {
+                        const pos = lastCaretPos;
+                        target.setSelectionRange(pos, pos);
+
+                        // If long scrollable textarea, bring the caret line into comfortable view
+                        if (target.tagName === 'TEXTAREA' && target.scrollHeight > target.clientHeight) {
+                            const val = target.value || '';
+                            const totalLines = val.split('\n').length || 1;
+                            const textBefore = val.substring(0, pos);
+                            const currentLine = textBefore.split('\n').length || 1;
+                            const lineHeight = target.scrollHeight / totalLines;
+                            const targetTop = Math.max(0, (currentLine * lineHeight) - (target.clientHeight / 2));
+                            target.scrollTop = targetTop;
+                        }
+                    }
+                }, 60);
+            }
+        });
+    }
+}
+
+/**
+ * Optimizes mobile input typing behavior and preserves caret/scroll stability
  */
 function applyMobileInputAntiJump() {
     const isMobile = (window.innerWidth <= 768) || (('ontouchstart' in window) && window.innerWidth <= 1024);
@@ -299,15 +361,25 @@ function applyMobileInputAntiJump() {
     document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
 
     if (isEnabled && isMobile) {
-        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea', function () {
+        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea, textarea', function () {
+            const textarea = this;
             const chatEl = document.getElementById('chat');
-            if (chatEl) {
-                const scrollTop = chatEl.scrollTop;
-                requestAnimationFrame(() => {
-                    window.scrollTo(0, 0);
-                    chatEl.scrollTop = scrollTop;
-                });
-            }
+            const initialChatScroll = chatEl ? chatEl.scrollTop : 0;
+            const initialCaretPos = typeof textarea.selectionStart === 'number' ? textarea.selectionStart : null;
+
+            [50, 150, 300, 500].forEach((delay) => {
+                setTimeout(() => {
+                    if (document.activeElement === textarea) {
+                        window.scrollTo(0, 0);
+                        if (chatEl) chatEl.scrollTop = initialChatScroll;
+                        if (initialCaretPos !== null && typeof textarea.setSelectionRange === 'function') {
+                            if (textarea.selectionStart !== initialCaretPos) {
+                                textarea.setSelectionRange(initialCaretPos, initialCaretPos);
+                            }
+                        }
+                    }
+                }, delay);
+            });
         });
     } else {
         $(document).off('focusin.cut_mobile focusout.cut_mobile');
@@ -2265,6 +2337,7 @@ jQuery(async () => {
     loadSettings();
     initAutoFocusInterceptor();
     initPastePerformanceFix();
+    initMobileCaretAnchor();
     applySettings();
     bindCopyCustomCssAction();
     bindCopyRegexAction();
