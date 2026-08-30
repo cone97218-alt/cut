@@ -202,43 +202,36 @@ function initAutoFocusInterceptor() {
     if (isAutoFocusInterceptorBound) return;
     isAutoFocusInterceptorBound = true;
 
+    // Single pointerdown/touchend covers both mouse and touch; no need for redundant click/select/contextmenu
     const updateInteractionTime = (e) => {
-        if (e.target && e.target.closest && e.target.closest('input, textarea, label, button, .menu_button, #send_form, #chat')) {
+        if (e.target && e.target.closest && e.target.closest('input, textarea, label, button, .menu_button')) {
             lastDirectInputInteraction = Date.now();
         }
     };
 
     document.addEventListener('pointerdown', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('touchstart', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('touchend', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('mousedown', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('click', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('select', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('selectionchange', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('contextmenu', updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('touchend',    updateInteractionTime, { capture: true, passive: true });
+    document.addEventListener('mousedown',   updateInteractionTime, { capture: true, passive: true });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Tab') {
-            lastTabInteraction = Date.now();
-        }
+        if (e.key === 'Tab') lastTabInteraction = Date.now();
     }, { capture: true });
 
     HTMLElement.prototype.focus = function (options) {
         const settings = extension_settings[extensionName];
         const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-
         if (isEnabled) {
             const tag = this.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                // Already focused — update timestamp and let the call through (handles caret repositioning)
                 if (document.activeElement === this) {
                     lastDirectInputInteraction = Date.now();
                     return originalFocus.call(this, options);
                 }
-                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 2000) || (Date.now() - lastTabInteraction < 2000);
-
-                if (!isUserInitiated) {
-                    return;
-                }
+                const isUserInitiated =
+                    (Date.now() - lastDirectInputInteraction < 1500) ||
+                    (Date.now() - lastTabInteraction < 1500);
+                if (!isUserInitiated) return;
             }
         }
         return originalFocus.call(this, options);
@@ -247,21 +240,14 @@ function initAutoFocusInterceptor() {
     document.addEventListener('focus', (e) => {
         const settings = extension_settings[extensionName];
         const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-
-        if (isEnabled) {
-            const target = e.target;
-            const tag = target?.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA') {
-                if (document.activeElement === target) {
-                    lastDirectInputInteraction = Date.now();
-                    return;
-                }
-                const isUserInitiated = (Date.now() - lastDirectInputInteraction < 2000) || (Date.now() - lastTabInteraction < 2000);
-                if (!isUserInitiated) {
-                    target.blur();
-                }
-            }
-        }
+        if (!isEnabled) return;
+        const target = e.target;
+        if (target?.tagName !== 'INPUT' && target?.tagName !== 'TEXTAREA') return;
+        if (document.activeElement === target) { lastDirectInputInteraction = Date.now(); return; }
+        const isUserInitiated =
+            (Date.now() - lastDirectInputInteraction < 1500) ||
+            (Date.now() - lastTabInteraction < 1500);
+        if (!isUserInitiated) target.blur();
     }, true);
 }
 
@@ -288,70 +274,68 @@ function loadSettings() {
     }
 }
 
-// Mobile Long-Text Caret & Viewport Anchor State
+// Mobile long-text caret anchor — records intended caret offset BEFORE keyboard resize distorts it
 let isCaretAnchorInstalled = false;
 let lastCaretTouchTarget = null;
 let lastCaretPos = null;
 let caretAnchorTimer = null;
 
 /**
- * Ensures clicked caret position in long text remains accurately anchored
- * when the mobile virtual keyboard pops up and shrinks the viewport
+ * On mobile, captures the user's intended caret offset on touchend (after browser has resolved the tap
+ * position, but before the virtual keyboard pops up and reflows the textarea). When visualViewport then
+ * fires a resize event (keyboard open/close), restores the caret and scrolls it into view — one shot,
+ * no polling.
  */
 function initMobileCaretAnchor() {
     if (isCaretAnchorInstalled) return;
     isCaretAnchorInstalled = true;
 
-    const recordCaretIntent = (e) => {
+    // touchend fires after the browser finalises tap-to-caret mapping, giving us the true selectionStart
+    const captureOnTouchEnd = (e) => {
         const target = e.target;
         if (!target || (target.tagName !== 'TEXTAREA' && target.tagName !== 'INPUT')) return;
-
         lastCaretTouchTarget = target;
-        setTimeout(() => {
-            if (target === document.activeElement && typeof target.selectionStart === 'number') {
-                lastCaretPos = target.selectionStart;
-            }
-        }, 50);
+        // Read selectionStart in the same microtask tick; no setTimeout needed here
+        if (typeof target.selectionStart === 'number') {
+            lastCaretPos = target.selectionStart;
+        }
     };
+    document.addEventListener('touchend', captureOnTouchEnd, { capture: true, passive: true });
 
-    document.addEventListener('touchstart', recordCaretIntent, { capture: true, passive: true });
-    document.addEventListener('pointerdown', recordCaretIntent, { capture: true, passive: true });
-    document.addEventListener('click', recordCaretIntent, { capture: true, passive: true });
+    if (!window.visualViewport) return; // desktop fallback — nothing to do
 
-    // When virtual keyboard resizes the viewport, firmly re-anchor the caret and textarea scroll
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', () => {
-            const settings = extension_settings[extensionName];
-            const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-            if (!isEnabled) return;
+    window.visualViewport.addEventListener('resize', () => {
+        const settings = extension_settings[extensionName];
+        if (!settings?.enabled || !settings?.module1?.fixMobileInput) return;
 
-            const target = document.activeElement;
-            if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') && lastCaretPos !== null && target === lastCaretTouchTarget) {
-                clearTimeout(caretAnchorTimer);
-                caretAnchorTimer = setTimeout(() => {
-                    if (target === document.activeElement && typeof target.setSelectionRange === 'function') {
-                        const pos = lastCaretPos;
-                        target.setSelectionRange(pos, pos);
+        const target = document.activeElement;
+        if (
+            !target ||
+            (target.tagName !== 'TEXTAREA' && target.tagName !== 'INPUT') ||
+            lastCaretPos === null ||
+            target !== lastCaretTouchTarget
+        ) return;
 
-                        // If long scrollable textarea, bring the caret line into comfortable view
-                        if (target.tagName === 'TEXTAREA' && target.scrollHeight > target.clientHeight) {
-                            const val = target.value || '';
-                            const totalLines = val.split('\n').length || 1;
-                            const textBefore = val.substring(0, pos);
-                            const currentLine = textBefore.split('\n').length || 1;
-                            const lineHeight = target.scrollHeight / totalLines;
-                            const targetTop = Math.max(0, (currentLine * lineHeight) - (target.clientHeight / 2));
-                            target.scrollTop = targetTop;
-                        }
-                    }
-                }, 60);
+        // Debounce: keyboard animations fire multiple resize events; wait for them to settle
+        clearTimeout(caretAnchorTimer);
+        caretAnchorTimer = setTimeout(() => {
+            if (target !== document.activeElement || typeof target.setSelectionRange !== 'function') return;
+
+            target.setSelectionRange(lastCaretPos, lastCaretPos);
+
+            // Scroll the caret line into the vertical centre of the (now smaller) textarea
+            if (target.tagName === 'TEXTAREA' && target.scrollHeight > target.clientHeight) {
+                const lineCount = Math.max(1, (target.value || '').split('\n').length);
+                const caretLine = Math.max(1, (target.value || '').substring(0, lastCaretPos).split('\n').length);
+                const lineHeight = target.scrollHeight / lineCount;
+                target.scrollTop = Math.max(0, caretLine * lineHeight - target.clientHeight / 2);
             }
-        });
-    }
+        }, 120); // 120 ms — enough for keyboard animation to finish on low-end devices
+    });
 }
 
 /**
- * Optimizes mobile input typing behavior and preserves caret/scroll stability
+ * Prevents page-level viewport jumps when the soft keyboard opens/closes
  */
 function applyMobileInputAntiJump() {
     const isMobile = (window.innerWidth <= 768) || (('ontouchstart' in window) && window.innerWidth <= 1024);
@@ -361,28 +345,18 @@ function applyMobileInputAntiJump() {
     document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
 
     if (isEnabled && isMobile) {
-        $(document).off('focusin.cut_mobile focusout.cut_mobile').on('focusin.cut_mobile', '#send_textarea, textarea', function () {
-            const textarea = this;
+        $(document).off('focusin.cut_mobile').on('focusin.cut_mobile', '#send_textarea, textarea', function () {
             const chatEl = document.getElementById('chat');
-            const initialChatScroll = chatEl ? chatEl.scrollTop : 0;
-            const initialCaretPos = typeof textarea.selectionStart === 'number' ? textarea.selectionStart : null;
-
-            [50, 150, 300, 500].forEach((delay) => {
-                setTimeout(() => {
-                    if (document.activeElement === textarea) {
-                        window.scrollTo(0, 0);
-                        if (chatEl) chatEl.scrollTop = initialChatScroll;
-                        if (initialCaretPos !== null && typeof textarea.setSelectionRange === 'function') {
-                            if (textarea.selectionStart !== initialCaretPos) {
-                                textarea.setSelectionRange(initialCaretPos, initialCaretPos);
-                            }
-                        }
-                    }
-                }, delay);
+            if (!chatEl) return;
+            const savedScroll = chatEl.scrollTop;
+            // Single rAF: scroll page back to top so the browser doesn't jump, then restore chat position
+            requestAnimationFrame(() => {
+                window.scrollTo(0, 0);
+                chatEl.scrollTop = savedScroll;
             });
         });
     } else {
-        $(document).off('focusin.cut_mobile focusout.cut_mobile');
+        $(document).off('focusin.cut_mobile');
     }
 }
 
