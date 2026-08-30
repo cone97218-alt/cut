@@ -117,11 +117,14 @@ function flushPasteBuffer() {
 }
 
 /**
- * Initializes mobile large text and rapid burst paste performance optimization
+ * Initializes mobile large text and rapid burst paste performance optimization.
+ * Normal single-key typing (insertText) is intentionally excluded — it is not a paste.
  */
 function initPastePerformanceFix() {
     if (isPasteFixInstalled) return;
     isPasteFixInstalled = true;
+
+    const pasteInputTypes = ['insertFromPaste', 'insertCompositionText', 'insertReplacementText'];
 
     document.addEventListener('beforeinput', (e) => {
         const settings = extension_settings[extensionName];
@@ -130,9 +133,7 @@ function initPastePerformanceFix() {
 
         const target = e.target;
         if (!isEditableInput(target) || e.isComposing) return;
-
-        const textInsertTypes = ['insertText', 'insertFromPaste', 'insertCompositionText', 'insertReplacementText'];
-        if (textInsertTypes.indexOf(e.inputType) === -1) return;
+        if (pasteInputTypes.indexOf(e.inputType) === -1) return;
 
         let text = '';
         if (e.dataTransfer && e.dataTransfer.getData('text/plain')) {
@@ -158,7 +159,6 @@ function initPastePerformanceFix() {
             }
             pasteTextParts.push(text);
             e.preventDefault();
-
             clearTimeout(pasteFlushTimer);
             pasteFlushTimer = setTimeout(flushPasteBuffer, 100);
             return;
@@ -167,7 +167,6 @@ function initPastePerformanceFix() {
         const now = Date.now();
         pasteBurstTimestamps.push(now);
         if (text.length > 3) pasteHasSubstantialText = true;
-
         while (pasteBurstTimestamps.length > 0 && now - pasteBurstTimestamps[0] > 200) {
             pasteBurstTimestamps.shift();
         }
@@ -180,37 +179,32 @@ function initPastePerformanceFix() {
                 pasteTextParts = [];
                 pasteCurrentTimeout = 300;
             }
-
             pasteTextParts.push(text);
             e.preventDefault();
-
             pasteCurrentTimeout = Math.min(pasteCurrentTimeout * 2, 2000);
             clearTimeout(pasteFlushTimer);
             pasteFlushTimer = setTimeout(flushPasteBuffer, pasteCurrentTimeout);
         } else {
-            if (pasteBatching) {
-                flushPasteBuffer();
-            }
+            if (pasteBatching) flushPasteBuffer();
         }
     }, true);
 }
 
 /**
- * Initializes the dual interception algorithm for auto-focus protection
+ * Intercepts programmatic .focus() calls to suppress unwanted auto-focus on mobile.
+ * Uses prototype override only — fires before the element is focused, so we silently
+ * drop disallowed calls rather than needing a follow-up blur().
  */
 function initAutoFocusInterceptor() {
     if (isAutoFocusInterceptorBound) return;
     isAutoFocusInterceptorBound = true;
 
-    // Single pointerdown/touchend covers both mouse and touch; no need for redundant click/select/contextmenu
     const updateInteractionTime = (e) => {
         if (e.target && e.target.closest && e.target.closest('input, textarea, label, button, .menu_button')) {
             lastDirectInputInteraction = Date.now();
         }
     };
-
     document.addEventListener('pointerdown', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('touchend',    updateInteractionTime, { capture: true, passive: true });
     document.addEventListener('mousedown',   updateInteractionTime, { capture: true, passive: true });
 
     document.addEventListener('keydown', (e) => {
@@ -220,35 +214,18 @@ function initAutoFocusInterceptor() {
     HTMLElement.prototype.focus = function (options) {
         const settings = extension_settings[extensionName];
         const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-        if (isEnabled) {
-            const tag = this.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA') {
-                // Already focused — update timestamp and let the call through (handles caret repositioning)
-                if (document.activeElement === this) {
-                    lastDirectInputInteraction = Date.now();
-                    return originalFocus.call(this, options);
-                }
-                const isUserInitiated =
-                    (Date.now() - lastDirectInputInteraction < 1500) ||
-                    (Date.now() - lastTabInteraction < 1500);
-                if (!isUserInitiated) return;
+        if (isEnabled && (this.tagName === 'INPUT' || this.tagName === 'TEXTAREA')) {
+            if (document.activeElement === this) {
+                lastDirectInputInteraction = Date.now();
+                return originalFocus.call(this, options);
             }
+            const isUserInitiated =
+                (Date.now() - lastDirectInputInteraction < 1500) ||
+                (Date.now() - lastTabInteraction < 1500);
+            if (!isUserInitiated) return;
         }
         return originalFocus.call(this, options);
     };
-
-    document.addEventListener('focus', (e) => {
-        const settings = extension_settings[extensionName];
-        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-        if (!isEnabled) return;
-        const target = e.target;
-        if (target?.tagName !== 'INPUT' && target?.tagName !== 'TEXTAREA') return;
-        if (document.activeElement === target) { lastDirectInputInteraction = Date.now(); return; }
-        const isUserInitiated =
-            (Date.now() - lastDirectInputInteraction < 1500) ||
-            (Date.now() - lastTabInteraction < 1500);
-        if (!isUserInitiated) target.blur();
-    }, true);
 }
 
 /**
@@ -330,12 +307,14 @@ function initMobileCaretAnchor() {
                 const lineHeight = target.scrollHeight / lineCount;
                 target.scrollTop = Math.max(0, caretLine * lineHeight - target.clientHeight / 2);
             }
-        }, 120); // 120 ms — enough for keyboard animation to finish on low-end devices
+        }, 120);
     });
 }
 
 /**
- * Prevents page-level viewport jumps when the soft keyboard opens/closes
+ * Guards against older WebView behaviour where opening the keyboard scrolls the page
+ * body instead of letting the inner #chat container manage its own scroll.
+ * Scoped to #send_textarea only — other inputs do not need this.
  */
 function applyMobileInputAntiJump() {
     const isMobile = (window.innerWidth <= 768) || (('ontouchstart' in window) && window.innerWidth <= 1024);
@@ -345,11 +324,10 @@ function applyMobileInputAntiJump() {
     document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
 
     if (isEnabled && isMobile) {
-        $(document).off('focusin.cut_mobile').on('focusin.cut_mobile', '#send_textarea, textarea', function () {
+        $(document).off('focusin.cut_mobile').on('focusin.cut_mobile', '#send_textarea', function () {
             const chatEl = document.getElementById('chat');
             if (!chatEl) return;
             const savedScroll = chatEl.scrollTop;
-            // Single rAF: scroll page back to top so the browser doesn't jump, then restore chat position
             requestAnimationFrame(() => {
                 window.scrollTo(0, 0);
                 chatEl.scrollTop = savedScroll;
