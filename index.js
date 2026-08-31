@@ -17,6 +17,9 @@ const defaultSettings = {
         hideSliderTips: true,
         hideCcInvalid: true,
         fixMobileInput: true,
+        fixVeridisRewriteField: true,
+        hideVeridisRemark: false,
+        hideVeridisRewriteMode: false,
     },
     module2: {
         foldPresets: true,
@@ -28,7 +31,11 @@ const defaultSettings = {
         foldUiEffects: true,
         foldThemeToggles: true,
         foldUserAdvanced: true,
+        foldVeridisSubruleParams: true,
         enableFullscreenEditor: true,
+        enableFullscreenEditorHeight: true,
+        fullscreenEditorHeight: 55,
+        fullscreenEditorTop: 10,
         enablePersonaHeight: true,
         personaHeight: 450,
         enableCharDescHeight: true,
@@ -397,6 +404,66 @@ function applyPromptManagerEntryParamsFolding() {
         const $drawerContent = $drawer.find('>.inline-drawer-content');
         if ($drawerContent.children().length === 0) {
             $drawerContent.append($paramRows);
+        }
+    }
+}
+
+/**
+ * Folds top parameters in Veridis-Rewrite Subrule Edit modal into "条目参数" 4-character drawer
+ */
+function applyVeridisSubruleParamsFolding() {
+    const settings = extension_settings[extensionName];
+    const isMasterEnabled = settings && settings.enabled;
+    const isModule2Enabled = isMasterEnabled && settings.module2;
+    const shouldFold = isModule2Enabled && settings.module2.foldVeridisSubruleParams;
+
+    const $modalBody = $('#blai-subrule-edit-modal .blai-subrule-modal-body');
+    if ($modalBody.length === 0) return;
+
+    let $drawer = $('#cut_m2_veridis_subrule_drawer');
+    const $targetField = $modalBody.find('.blai-subrule-field:has(#blai-modal-sub-target)');
+
+    if (shouldFold) {
+        if ($drawer.length === 0) {
+            const drawerHtml = `
+            <div id="cut_m2_veridis_subrule_drawer" class="inline-drawer wide100p" style="margin-bottom: 12px;">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <b>条目参数</b>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                </div>
+                <div class="inline-drawer-content" style="display: none; padding-top: 6px;"></div>
+            </div>
+            `;
+            if ($targetField.length > 0) {
+                $targetField.before(drawerHtml);
+            } else {
+                $modalBody.prepend(drawerHtml);
+            }
+            $drawer = $('#cut_m2_veridis_subrule_drawer');
+        }
+
+        const $drawerContent = $drawer.find('>.inline-drawer-content');
+        if ($drawerContent.find('#blai-modal-sub-remark').length === 0) {
+            const $remarkField = $modalBody.find('.blai-subrule-field:has(#blai-modal-sub-remark)');
+            const $modeField = $modalBody.find('.blai-subrule-field:has(#blai-modal-sub-rewrite-mode)');
+            const $aiPromptField = $modalBody.find('#blai-modal-sub-ai-prompt-field');
+            const $itemsToFold = $remarkField.add($modeField).add($aiPromptField);
+            if ($itemsToFold.length > 0) {
+                $drawerContent.append($itemsToFold);
+            }
+        }
+        $drawer.show();
+    } else {
+        if ($drawer.length > 0 && $drawer.is(':visible')) {
+            const $itemsToRestore = $drawer.find('>.inline-drawer-content').children();
+            if ($itemsToRestore.length > 0) {
+                if ($targetField.length > 0) {
+                    $targetField.before($itemsToRestore);
+                } else {
+                    $modalBody.prepend($itemsToRestore);
+                }
+            }
+            $drawer.hide();
         }
     }
 }
@@ -991,6 +1058,11 @@ function applyMaximizedEditorScrollActions() {
 
     $('.maximized_textarea').each(function () {
         const $textarea = $(this);
+        const $dialog = $textarea.closest('dialog.popup, .popup');
+        if ($dialog.length > 0) {
+            $dialog.addClass('cut-fullscreen-editor-popup');
+        }
+
         const $wrapper = $textarea.parent();
         if ($wrapper.length === 0) return;
 
@@ -1170,6 +1242,7 @@ function applyModule2Settings() {
 
     applyPromptManagerMaximizeButton();
     applyPromptManagerEntryParamsFolding();
+    applyVeridisSubruleParamsFolding();
     applyRegexEditorEnhancements();
     applyMaximizedEditorScrollActions();
     applyUserAvatarsFolding();
@@ -1589,22 +1662,31 @@ function applySettings() {
     body.classList.toggle('cut-hide-redirect-links', !!settings.module1.hideRedirectLinks);
     body.classList.toggle('cut-hide-slider-tips', !!settings.module1.hideSliderTips);
     body.classList.toggle('cut-hide-cc-invalid', !!settings.module1.hideCcInvalid);
+    body.classList.toggle('cut-fix-veridis-rewrite', !!settings.module1.fixVeridisRewriteField);
+    body.classList.toggle('cut-hide-veridis-remark', !!settings.module1.hideVeridisRemark);
+    body.classList.toggle('cut-hide-veridis-mode', !!settings.module1.hideVeridisRewriteMode);
 
     // Module 2 Dynamic Height Features [CSS Variables]
     const pHeight = parseInt(settings.module2.personaHeight) || 450;
     const cdHeight = parseInt(settings.module2.charDescHeight) || 450;
     const cHeight = parseInt(settings.module2.customCssHeight) || 500;
     const aHeight = parseInt(settings.module2.userAvatarHeight) || 300;
+    const fsHeight = parseInt(settings.module2.fullscreenEditorHeight) || 55;
+    const fsTop = (settings.module2.fullscreenEditorTop !== undefined && settings.module2.fullscreenEditorTop !== null && settings.module2.fullscreenEditorTop !== '') ? parseInt(settings.module2.fullscreenEditorTop) : 10;
 
     document.documentElement.style.setProperty('--cut-persona-height', `${pHeight}px`);
     document.documentElement.style.setProperty('--cut-char-desc-height', `${cdHeight}px`);
     document.documentElement.style.setProperty('--cut-css-height', `${cHeight}px`);
     document.documentElement.style.setProperty('--cut-avatar-height', `${aHeight}px`);
+    document.documentElement.style.setProperty('--cut-fullscreen-editor-height', `${fsHeight}vh`);
+    document.documentElement.style.setProperty('--cut-fullscreen-editor-height-dvh', `${fsHeight}dvh`);
+    document.documentElement.style.setProperty('--cut-fullscreen-editor-top', `${fsTop}px`);
 
     body.classList.toggle('cut-persona-height-active', !!(settings.module2 && settings.module2.enablePersonaHeight));
     body.classList.toggle('cut-char-desc-height-active', !!(settings.module2 && settings.module2.enableCharDescHeight));
     body.classList.toggle('cut-css-height-active', !!(settings.module2 && settings.module2.enableCssHeight));
     body.classList.toggle('cut-avatar-height-active', !!(settings.module2 && settings.module2.enableAvatarHeight));
+    body.classList.toggle('cut-fullscreen-editor-height-active', !!(settings.module2 && settings.module2.enableFullscreenEditorHeight));
 
     applyModule2Settings();
     applyMobileInputAntiJump();
@@ -1754,6 +1836,33 @@ function renderSettingsUI() {
                                 </label>
                             </div>
                             <div class="cut-option-desc">双重拦截机制与分段粘贴渲染合并，彻底解决移动端代码自动聚焦拉起键盘、打字弹跳、长文本粘贴卡顿与视口抖动问题</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m1_veridis_rewrite">
+                                    <input type="checkbox" id="cut_m1_veridis_rewrite">
+                                    <span>净化改写要求</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">适配 Veridis-Rewrite（净化/改写）插件，在子规则处于“程序替换”模式时自动隐藏无用的“单条改写要求”输入框</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m1_veridis_remark">
+                                    <input type="checkbox" id="cut_m1_veridis_remark">
+                                    <span>净化隐藏备注</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">隐藏 Veridis-Rewrite 净化插件子规则编辑弹窗中的“备注说明 (可选)”标题及输入框</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m1_veridis_mode">
+                                    <input type="checkbox" id="cut_m1_veridis_mode">
+                                    <span>净化隐藏方式</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">隐藏 Veridis-Rewrite 净化插件子规则编辑弹窗中的“处理方式”标题及选择下拉框</div>
                         </div>
                     </div>
 
@@ -1761,6 +1870,15 @@ function renderSettingsUI() {
                     <div id="cut_tab_m2" class="cut-tab-content">
                         <div class="cut-module-section">
                             <div class="cut-module-title"><b>模块二：界面收纳与高度配置</b></div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_fold_veridis_params">
+                                    <input type="checkbox" id="cut_m2_fold_veridis_params">
+                                    <span>折叠净化参数</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">将 Veridis-Rewrite 净化插件子规则编辑弹窗中的备注说明与处理方式收纳进“条目参数”折叠条</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_fold_presets">
@@ -1851,6 +1969,23 @@ function renderSettingsUI() {
                                 </label>
                             </div>
                             <div class="cut-option-desc">在全屏文本编辑框顶部提供搜索替换、撤回重做与快速回顶底工具栏</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_fullscreen_height_toggle">
+                                    <input type="checkbox" id="cut_m2_fullscreen_height_toggle">
+                                    <span>全屏编辑高度</span>
+                                    <span class="cut-option-tag tag-css">CSS</span>
+                                </label>
+                                <div class="flex-container alignItemsCenter gap5">
+                                    <input type="number" id="cut_m2_fullscreen_height_val" class="text_pole textarea_compact" min="20" max="95" style="width: 55px; text-align: center;" title="全屏编辑器占屏幕高度的百分比">
+                                    <small>%</small>
+                                    <span style="opacity: 0.4; margin: 0 1px;">|</span>
+                                    <small style="opacity: 0.8;">顶距</small>
+                                    <input type="number" id="cut_m2_fullscreen_top_val" class="text_pole textarea_compact" min="0" max="300" style="width: 50px; text-align: center;" title="全屏编辑器距离屏幕顶部的像素距离">
+                                    <small>px</small>
+                                </div>
+                            </div>
+                            <div class="cut-option-desc">固定全屏放大编辑器的高度占比（屏幕 x%）与顶部间距，默认自上而下对齐不居中，优化软键盘输入</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_persona_height_toggle">
@@ -1947,7 +2082,11 @@ function renderSettingsUI() {
     $('#cut_m1_slidertips').prop('checked', settings.module1.hideSliderTips);
     $('#cut_m1_ccinvalid').prop('checked', settings.module1.hideCcInvalid);
     $('#cut_m1_mobile_input').prop('checked', settings.module1.fixMobileInput);
+    $('#cut_m1_veridis_rewrite').prop('checked', settings.module1.fixVeridisRewriteField !== false);
+    $('#cut_m1_veridis_remark').prop('checked', !!settings.module1.hideVeridisRemark);
+    $('#cut_m1_veridis_mode').prop('checked', !!settings.module1.hideVeridisRewriteMode);
 
+    $('#cut_m2_fold_veridis_params').prop('checked', settings.module2.foldVeridisSubruleParams !== false);
     $('#cut_m2_fold_presets').prop('checked', settings.module2.foldPresets);
     $('#cut_m2_fold_witop').prop('checked', settings.module2.foldWorldInfoTop);
     $('#cut_m2_fold_user_avatars').prop('checked', settings.module2.foldUserAvatars);
@@ -1960,6 +2099,10 @@ function renderSettingsUI() {
     $('#cut_m2_enable_fullscreen_editor').prop('checked', settings.module2.enableFullscreenEditor !== false);
 
     // Height Toggles & Input Values
+    $('#cut_m2_fullscreen_height_toggle').prop('checked', settings.module2.enableFullscreenEditorHeight !== false);
+    $('#cut_m2_fullscreen_height_val').val(settings.module2.fullscreenEditorHeight || 55);
+    $('#cut_m2_fullscreen_top_val').val(settings.module2.fullscreenEditorTop !== undefined ? settings.module2.fullscreenEditorTop : 10);
+
     $('#cut_m2_persona_height_toggle').prop('checked', settings.module2.enablePersonaHeight);
     $('#cut_m2_persona_height_val').val(settings.module2.personaHeight || 450);
 
@@ -2040,6 +2183,30 @@ function renderSettingsUI() {
         saveSettingsDebounced();
     });
 
+    $('#cut_m1_veridis_rewrite').off('change').on('change', function () {
+        settings.module1.fixVeridisRewriteField = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m1_veridis_remark').off('change').on('change', function () {
+        settings.module1.hideVeridisRemark = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m1_veridis_mode').off('change').on('change', function () {
+        settings.module1.hideVeridisRewriteMode = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_fold_veridis_params').off('change').on('change', function () {
+        settings.module2.foldVeridisSubruleParams = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
     $('#cut_m2_fold_presets').off('change').on('change', function () {
         settings.module2.foldPresets = $(this).prop('checked');
         applySettings();
@@ -2101,6 +2268,26 @@ function renderSettingsUI() {
     });
 
     // Height Event Handlers
+    $('#cut_m2_fullscreen_height_toggle').off('change').on('change', function () {
+        settings.module2.enableFullscreenEditorHeight = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_fullscreen_height_val').off('input change').on('input change', function () {
+        const val = parseInt($(this).val()) || 55;
+        settings.module2.fullscreenEditorHeight = val;
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_fullscreen_top_val').off('input change').on('input change', function () {
+        const val = $(this).val() === '' ? 0 : (parseInt($(this).val()) || 0);
+        settings.module2.fullscreenEditorTop = val;
+        applySettings();
+        saveSettingsDebounced();
+    });
+
     $('#cut_m2_persona_height_toggle').off('change').on('change', function () {
         settings.module2.enablePersonaHeight = $(this).prop('checked');
         applySettings();
@@ -2315,7 +2502,7 @@ jQuery(async () => {
         if ($('#extensions_settings').length > 0 || $('#rm_extensions_block').length > 0) {
             renderSettingsUI();
         }
-        if ($('#ai_response_configuration').length > 0 || $('#wi-holder').length > 0 || $('.persona_management_right_column').length > 0 || $('#user-settings-block-content').length > 0 || $('.persona_management_left_column').length > 0 || $('#firstMessageWrapper').length > 0) {
+        if ($('#ai_response_configuration').length > 0 || $('#wi-holder').length > 0 || $('.persona_management_right_column').length > 0 || $('#user-settings-block-content').length > 0 || $('.persona_management_left_column').length > 0 || $('#firstMessageWrapper').length > 0 || $('#blai-subrule-edit-modal').length > 0) {
             applyModule2Settings();
         }
         if ($('#cut_container').length > 0 && $('#cut_m2_gen_params_drawer').length > 0) {

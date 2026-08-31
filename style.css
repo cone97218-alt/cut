@@ -691,3 +691,122 @@ div[name="UserSettingsThirdColumn"] hr {
     border-color: var(--SmartThemeEmColor, #4caf50) !important;
     font-weight: bold !important;
 }
+
+/* Fullscreen Editor Optimization: Top-down aligned, non-centered, fixed screen height percentage */
+body.cut-fullscreen-editor-height-active dialog.popup:has(.maximized_textarea),
+body.cut-fullscreen-editor-height-active .popup:has(.maximized_textarea),
+body.cut-fullscreen-editor-height-active dialog.popup.cut-fullscreen-editor-popup,
+body.cut-fullscreen-editor-height-active .popup.cut-fullscreen-editor-popup {
+    top: var(--cut-fullscreen-editor-top, 10px) !important;
+    bottom: auto !important;
+    inset-block-start: var(--cut-fullscreen-editor-top, 10px) !important;
+    inset-block-end: auto !important;
+    margin-top: var(--cut-fullscreen-editor-top, 10px) !important;
+    margin-bottom: auto !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    height: var(--cut-fullscreen-editor-height, 55vh) !important;
+    height: var(--cut-fullscreen-editor-height-dvh, 55dvh) !important;
+    max-height: var(--cut-fullscreen-editor-height, 55vh) !important;
+    max-height: var(--cut-fullscreen-editor-height-dvh, 55dvh) !important;
+    min-height: 120px !important;
+    transform: none !important;
+    justify-content: flex-start !important;
+}
+
+body.cut-fullscreen-editor-height-active dialog.popup:has(.maximized_textarea) .popup-body,
+body.cut-fullscreen-editor-height-active .popup:has(.maximized_textarea) .popup-body,
+body.cut-fullscreen-editor-height-active dialog.popup.cut-fullscreen-editor-popup .popup-body,
+body.cut-fullscreen-editor-height-active .popup.cut-fullscreen-editor-popup .popup-body {
+    height: 100% !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    overflow: hidden !important;
+    padding: 2px !important;
+}
+
+body.cut-fullscreen-editor-height-active dialog.popup:has(.maximized_textarea) .popup-content,
+body.cut-fullscreen-editor-height-active .popup:has(.maximized_textarea) .popup-content,
+body.cut-fullscreen-editor-height-active dialog.popup.cut-fullscreen-editor-popup .popup-content,
+body.cut-fullscreen-editor-height-active .popup.cut-fullscreen-editor-popup .popup-content {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    margin-top: 4px !important;
+    padding: 0 4px !important;
+    overflow: hidden !important;
+}
+
+body.cut-fullscreen-editor-height-active dialog.popup:has(.maximized_textarea) .popup-content > .flex-container,
+body.cut-fullscreen-editor-height-active .popup:has(.maximized_textarea) .popup-content > .flex-container,
+body.cut-fullscreen-editor-height-active dialog.popup.cut-fullscreen-editor-popup .popup-content > .flex-container,
+body.cut-fullscreen-editor-height-active .popup.cut-fullscreen-editor-popup .popup-content > .flex-container {
+    justify-content: flex-start !important;
+    height: 100% !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+}
+
+body.cut-fullscreen-editor-height-active dialog.popup:has(.maximized_textarea) .maximized_textarea,
+body.cut-fullscreen-editor-height-active .popup:has(.maximized_textarea) .maximized_textarea,
+body.cut-fullscreen-editor-height-active dialog.popup.cut-fullscreen-editor-popup .maximized_textarea,
+body.cut-fullscreen-editor-height-active .popup.cut-fullscreen-editor-popup .maximized_textarea {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+body.cut-fullscreen-editor-height-active dialog.popup:has(.maximized_textarea) .popup-controls,
+body.cut-fullscreen-editor-height-active .popup:has(.maximized_textarea) .popup-controls,
+body.cut-fullscreen-editor-height-active dialog.popup.cut-fullscreen-editor-popup .popup-controls,
+body.cut-fullscreen-editor-height-active .popup.cut-fullscreen-editor-popup .popup-controls {
+    margin-top: 6px !important;
+    flex-shrink: 0 !important;
+}
+
+/* 第三方插件适配：Veridis-Rewrite 净化/改写插件处于程序替换模式时隐藏单条改写要求字段 */
+body.cut-fix-veridis-rewrite #blai-modal-sub-ai-prompt-field[hidden],
+body.cut-fix-veridis-rewrite .blai-subrule-field[hidden],
+body.cut-fix-veridis-rewrite #blai-subrule-edit-modal:has(#blai-modal-sub-rewrite-mode option[value="program"]:checked) #blai-modal-sub-ai-prompt-field,
+body.cut-fix-veridis-rewrite .blai-subrule-modal-body:has(#blai-modal-sub-rewrite-mode option[value="program"]:checked) #blai-modal-sub-ai-prompt-field,
+body.cut-fix-veridis-rewrite .blai-subrule-field:has(#blai-modal-sub-rewrite-mode option[value="program"]:checked) + #blai-modal-sub-ai-prompt-field {
+    display: none !important;
+}
+
+/* 第三方插件适配：Veridis-Rewrite 隐藏备注说明及输入框 */
+body.cut-hide-veridis-remark #blai-subrule-edit-modal .blai-subrule-field:has(#blai-modal-sub-remark) {
+    display: none !important;
+}
+
+/* 第三方插件适配：Veridis-Rewrite 隐藏处理方式及选择框 */
+body.cut-hide-veridis-mode #blai-subrule-edit-modal .blai-subrule-field:has(#blai-modal-sub-rewrite-mode),
+body.cut-hide-veridis-mode #blai-subrule-edit-modal #blai-modal-sub-ai-prompt-field {
+    display: none !important;
+}
+
+/* 第三方插件适配：Veridis-Rewrite 条目参数折叠条 */
+#cut_m2_veridis_subrule_drawer {
+    margin-bottom: 12px !important;
+}
+
+#cut_m2_veridis_subrule_drawer .inline-drawer-header {
+    background: var(--bg-surface, rgba(0, 0, 0, 0.15)) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+#cut_m2_veridis_subrule_drawer .inline-drawer-content {
+    padding: 8px 2px 0 2px !important;
+}
