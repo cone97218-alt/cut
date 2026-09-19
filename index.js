@@ -32,6 +32,11 @@ const defaultSettings = {
         foldThemeToggles: true,
         foldUserAdvanced: true,
         foldVeridisSubruleParams: true,
+        foldPmEntryParams: true,
+        enablePmMaximize: true,
+        enableRegexEnhancements: true,
+        enableCopyCustomCss: true,
+        enableApplyCustomCss: true,
         enableFullscreenEditor: true,
         enableFullscreenEditorHeight: true,
         fullscreenEditorHeight: 55,
@@ -356,22 +361,33 @@ function applyMobileInputAntiJump() {
  * Right-aligns full-screen editor maximize button in Prompt Manager entry edit form
  */
 function applyPromptManagerMaximizeButton() {
+    const settings = extension_settings[extensionName];
+    const isMasterEnabled = settings && settings.enabled;
+    const isModule2Enabled = isMasterEnabled && settings.module2;
+    const shouldEnable = isModule2Enabled && (settings.module2.enablePmMaximize !== false);
+
     const $overridesBlock = $('#completion_prompt_manager_forbid_overrides_block');
     if ($overridesBlock.length > 0) {
         let $actionsContainer = $overridesBlock.closest('.cut-pm-prompt-actions');
-        if ($actionsContainer.length === 0) {
-            $overridesBlock.wrap('<div class="cut-pm-prompt-actions"></div>');
-            $actionsContainer = $overridesBlock.closest('.cut-pm-prompt-actions');
-        }
+        if (shouldEnable) {
+            if ($actionsContainer.length === 0) {
+                $overridesBlock.wrap('<div class="cut-pm-prompt-actions"></div>');
+                $actionsContainer = $overridesBlock.closest('.cut-pm-prompt-actions');
+            }
 
-        if ($actionsContainer.find('.editor_maximize').length === 0) {
-            const maximizeBtnHtml = `
-                <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" 
-                   data-for="completion_prompt_manager_popup_entry_form_prompt" 
-                   title="展开全屏编辑器" 
-                   style="cursor: pointer; opacity: 0.85;"></i>
-            `;
-            $actionsContainer.append(maximizeBtnHtml);
+            if ($actionsContainer.find('.editor_maximize').length === 0) {
+                const maximizeBtnHtml = `
+                    <i class="editor_maximize fa-solid fa-maximize right_menu_button margin0" 
+                       data-for="completion_prompt_manager_popup_entry_form_prompt" 
+                       title="展开全屏编辑器" 
+                       style="cursor: pointer; opacity: 0.85;"></i>
+                `;
+                $actionsContainer.append(maximizeBtnHtml);
+            }
+        } else {
+            if ($actionsContainer.length > 0) {
+                $actionsContainer.find('.editor_maximize[data-for="completion_prompt_manager_popup_entry_form_prompt"]').remove();
+            }
         }
     }
 }
@@ -380,30 +396,48 @@ function applyPromptManagerMaximizeButton() {
  * Folds top parameters in Prompt Manager Edit modal into "条目参数" 4-character drawer
  */
 function applyPromptManagerEntryParamsFolding() {
+    const settings = extension_settings[extensionName];
+    const isMasterEnabled = settings && settings.enabled;
+    const isModule2Enabled = isMasterEnabled && settings.module2;
+    const shouldFold = isModule2Enabled && (settings.module2.foldPmEntryParams !== false);
+
     const $form = $('#completion_prompt_manager_popup_edit form.completion_prompt_manager_popup_entry_form');
     if ($form.length === 0) return;
 
     let $drawer = $('#cut_m2_pm_entry_params_drawer');
     const $paramRows = $form.find('> .flex-container.gap10px');
 
-    if ($paramRows.length > 0) {
-        if ($drawer.length === 0) {
-            const drawerHtml = `
-            <div id="cut_m2_pm_entry_params_drawer" class="inline-drawer wide100p">
-                <div class="inline-drawer-toggle inline-drawer-header">
-                    <b>条目参数</b>
-                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    if (shouldFold) {
+        if ($paramRows.length > 0) {
+            if ($drawer.length === 0) {
+                const drawerHtml = `
+                <div id="cut_m2_pm_entry_params_drawer" class="inline-drawer wide100p">
+                    <div class="inline-drawer-toggle inline-drawer-header">
+                        <b>条目参数</b>
+                        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                    </div>
+                    <div class="inline-drawer-content" style="display: none;"></div>
                 </div>
-                <div class="inline-drawer-content" style="display: none;"></div>
-            </div>
-            `;
-            $form.prepend(drawerHtml);
-            $drawer = $('#cut_m2_pm_entry_params_drawer');
-        }
+                `;
+                $form.prepend(drawerHtml);
+                $drawer = $('#cut_m2_pm_entry_params_drawer');
+            }
 
-        const $drawerContent = $drawer.find('>.inline-drawer-content');
-        if ($drawerContent.children().length === 0) {
-            $drawerContent.append($paramRows);
+            const $drawerContent = $drawer.find('>.inline-drawer-content');
+            if ($drawerContent.children().length === 0) {
+                $drawerContent.append($paramRows);
+            }
+        }
+        if ($drawer.length > 0) {
+            $drawer.show();
+        }
+    } else {
+        if ($drawer.length > 0 && $drawer.is(':visible')) {
+            const $itemsToRestore = $drawer.find('>.inline-drawer-content').children();
+            if ($itemsToRestore.length > 0) {
+                $form.prepend($itemsToRestore);
+            }
+            $drawer.hide();
         }
     }
 }
@@ -472,9 +506,23 @@ function applyVeridisSubruleParamsFolding() {
  * Enhances Regex Editor instances by adding full-screen maximize and copy icons
  */
 function applyRegexEditorEnhancements() {
+    const settings = extension_settings[extensionName];
+    const isMasterEnabled = settings && settings.enabled;
+    const isModule2Enabled = isMasterEnabled && settings.module2;
+    const shouldEnable = isModule2Enabled && (settings.module2.enableRegexEnhancements !== false);
+
     $('.regex_editor, .popup:has(.find_regex), form:has(.find_regex)').each(function (editorIdx) {
         const $editor = $(this);
         if ($editor.is('#regex_editor_template')) return;
+
+        if (!shouldEnable) {
+            $editor.find('.cut-regex-actions').remove();
+            $editor.find('.find_regex, .regex_replace_string, .regex_trim_strings').each(function () {
+                $(this).removeClass('wide100p').css('width', '');
+                $(this).parent().css('width', '');
+            });
+            return;
+        }
 
         let editorUid = $editor.attr('data-cut-uid');
         if (!editorUid) {
@@ -1068,6 +1116,7 @@ function applyMaximizedEditorScrollActions() {
 
         const dataFor = $textarea.attr('data-for') || '';
         const isCustomCss = dataFor === 'customCSS';
+        const shouldApplyCss = isCustomCss && (settings.module2.enableApplyCustomCss !== false);
 
         if ($wrapper.find('.cut-editor-search-replace-bar').length === 0) {
             const searchBarHtml = `
@@ -1084,7 +1133,7 @@ function applyMaximizedEditorScrollActions() {
                         <button type="button" class="cut-search-case menu_button margin0" title="Match case">Aa</button>
                         <button type="button" class="cut-search-regex menu_button margin0" title="Regular expression">.*</button>
                         <button type="button" class="cut-toggle-replace menu_button margin0" title="Toggle replace toolbar"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
-                        ${isCustomCss ? `
+                        ${shouldApplyCss ? `
                         <button type="button" class="cut-apply-css-btn menu_button margin0 ${hasUnappliedCssChanges ? 'has-unapplied' : ''}" title="Apply CSS to page">
                             <i class="fa-solid fa-check"></i>
                         </button>
@@ -1110,6 +1159,19 @@ function applyMaximizedEditorScrollActions() {
 
             $wrapper.prepend(searchBarHtml);
             bindSearchReplaceEvents($wrapper, $textarea);
+        } else {
+            const $applyBtn = $wrapper.find('.cut-apply-css-btn');
+            if (shouldApplyCss) {
+                if ($applyBtn.length === 0) {
+                    $wrapper.find('.cut-search-btn-group').append(`
+                        <button type="button" class="cut-apply-css-btn menu_button margin0 ${hasUnappliedCssChanges ? 'has-unapplied' : ''}" title="Apply CSS to page">
+                            <i class="fa-solid fa-check"></i>
+                        </button>
+                    `);
+                }
+            } else {
+                $applyBtn.remove();
+            }
         }
     });
 }
@@ -1423,6 +1485,8 @@ function applyModule2Settings() {
                 $cssDrawerContent.append($customCssBlock);
             }
             $customCssBlock.find('.cut-css-inline-bar').remove();
+            const shouldCopyCss = isModule2Enabled && (settings.module2.enableCopyCustomCss !== false);
+            $cssDrawer.find('.cut-copy-css-btn').toggle(shouldCopyCss);
             $cssDrawer.show();
 
             // Place native Theme Colors drawer immediately below Custom CSS drawer
@@ -1962,6 +2026,51 @@ function renderSettingsUI() {
                             <div class="cut-option-desc">将用户设置右侧的角色处理与聊天/消息处理收纳进“高级设置”折叠条</div>
 
                             <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_fold_pm_params">
+                                    <input type="checkbox" id="cut_m2_fold_pm_params">
+                                    <span>折叠提示参数</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">将提示词管理器 (Prompt Manager) 条目编辑弹窗顶部的选项收纳进“条目参数”折叠条</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_pm_maximize">
+                                    <input type="checkbox" id="cut_m2_pm_maximize">
+                                    <span>提示词全屏</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">在提示词管理器条目编辑弹窗的右上角显示“展开全屏编辑器”放大按钮</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_regex_enhancements">
+                                    <input type="checkbox" id="cut_m2_regex_enhancements">
+                                    <span>正则编辑增强</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">在正则表达式编辑弹窗中添加一键复制与全屏放大按钮，并将输入框宽度设为 100%</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_copy_custom_css">
+                                    <input type="checkbox" id="cut_m2_copy_custom_css">
+                                    <span>复制样式按钮</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">在用户设置的“自定义样式”折叠抽屉右侧显示一键复制代码图标</div>
+
+                            <div class="cut-option-item">
+                                <label class="cut-option-label" for="cut_m2_apply_custom_css">
+                                    <input type="checkbox" id="cut_m2_apply_custom_css">
+                                    <span>样式即时生效</span>
+                                    <span class="cut-option-tag tag-js">JS</span>
+                                </label>
+                            </div>
+                            <div class="cut-option-desc">在全屏编辑自定义样式 (customCSS) 时，在工具栏右侧显示将 CSS 即时应用到页面的勾选按钮</div>
+
+                            <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m2_enable_fullscreen_editor">
                                     <input type="checkbox" id="cut_m2_enable_fullscreen_editor">
                                     <span>全屏编辑增强</span>
@@ -2096,6 +2205,11 @@ function renderSettingsUI() {
     $('#cut_m2_fold_ui_effects').prop('checked', settings.module2.foldUiEffects);
     $('#cut_m2_fold_theme_toggles').prop('checked', settings.module2.foldThemeToggles);
     $('#cut_m2_fold_user_advanced').prop('checked', settings.module2.foldUserAdvanced);
+    $('#cut_m2_fold_pm_params').prop('checked', settings.module2.foldPmEntryParams !== false);
+    $('#cut_m2_pm_maximize').prop('checked', settings.module2.enablePmMaximize !== false);
+    $('#cut_m2_regex_enhancements').prop('checked', settings.module2.enableRegexEnhancements !== false);
+    $('#cut_m2_copy_custom_css').prop('checked', settings.module2.enableCopyCustomCss !== false);
+    $('#cut_m2_apply_custom_css').prop('checked', settings.module2.enableApplyCustomCss !== false);
     $('#cut_m2_enable_fullscreen_editor').prop('checked', settings.module2.enableFullscreenEditor !== false);
 
     // Height Toggles & Input Values
@@ -2257,6 +2371,36 @@ function renderSettingsUI() {
 
     $('#cut_m2_fold_user_advanced').off('change').on('change', function () {
         settings.module2.foldUserAdvanced = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_fold_pm_params').off('change').on('change', function () {
+        settings.module2.foldPmEntryParams = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_pm_maximize').off('change').on('change', function () {
+        settings.module2.enablePmMaximize = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_regex_enhancements').off('change').on('change', function () {
+        settings.module2.enableRegexEnhancements = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_copy_custom_css').off('change').on('change', function () {
+        settings.module2.enableCopyCustomCss = $(this).prop('checked');
+        applySettings();
+        saveSettingsDebounced();
+    });
+
+    $('#cut_m2_apply_custom_css').off('change').on('change', function () {
+        settings.module2.enableApplyCustomCss = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
