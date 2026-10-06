@@ -1,14 +1,26 @@
 /* UI Trimmer (cut) Extension Stylesheet */
 
-body.cut-hide-welcome-assistant #chat .mes[type="assistant_message"] {
+body.cut-hide-welcome-assistant #chat .mes[type="assistant_message"],
+body.cut-hide-welcome-assistant #chat .mes[type="assistant_note"],
+body.cut-hide-welcome-assistant #chat .mes[ch_name="Assistant"]:not([is_user="true"]),
+body.cut-hide-welcome-assistant #chat .mes[ch_name="assistant"]:not([is_user="true"]),
+body.cut-hide-welcome-assistant #chat .mes[ch_name="助手"]:not([is_user="true"]),
+body.cut-hide-welcome-assistant #chat .mes:has(.avatar img[src*="Assistant"]):not([is_user="true"]),
+body.cut-hide-welcome-assistant #chat .mes:has(.avatar img[src*="assistant"]):not([is_user="true"]),
+body.cut-hide-welcome-assistant #chat .mes.cut-hide-assistant-mes {
     display: none !important;
 }
 
-body.cut-hide-welcome-prompt #chat .mes[type="welcome_prompt"] {
+body.cut-hide-welcome-prompt #chat .mes[type="welcome_prompt"],
+body.cut-hide-welcome-prompt #chat .mes:has(button[data-target="sys-settings-button"]):has(button[data-target="rightNavHolder"]),
+body.cut-hide-welcome-prompt #chat .mes:has(button[data-target="sys-settings-button"]),
+body.cut-hide-welcome-prompt #chat .mes.cut-hide-prompt-mes {
     display: none !important;
 }
 
-body.cut-hide-welcome-header-title .welcomeHeaderTitle {
+body.cut-hide-welcome-header-title .welcomeHeaderTitle,
+body.cut-hide-welcome-header-title .welcomeHeaderLogo,
+body.cut-hide-welcome-header-title .welcomeHeaderVersionDisplay {
     display: none !important;
 }
 
@@ -17,7 +29,9 @@ body.cut-hide-welcome-shortcuts .welcomeShortcuts {
 }
 
 body.cut-hide-welcome-onboarding .onboarding,
-body.cut-hide-welcome-onboarding #chat .mes[type="welcome"] {
+body.cut-hide-welcome-onboarding #chat .mes[type="welcome"],
+body.cut-hide-welcome-onboarding #chat .mes:has(#version_display_welcome),
+body.cut-hide-welcome-onboarding #chat .mes:has(a[href*="usage/update"]) {
     display: none !important;
 }
 
@@ -31,6 +45,8 @@ body.cut-hide-tutorials .fa-question-circle:not(.cut-keep),
 body.cut-hide-tutorials .fa-circle-question:not(.cut-keep),
 body.cut-hide-tutorials a[href*="docs.sillytavern.app"] .fa-circle-question,
 body.cut-hide-tutorials a[href*="docs.sillytavern.app"] .fa-question-circle,
+body.cut-hide-tutorials a[href*="tauritavern.github.io"] .fa-question-circle,
+body.cut-hide-tutorials a[href*="tauritavern.github.io"] .fa-circle-question,
 body.cut-hide-tutorials .shepherd-element,
 body.cut-hide-tutorials .st-guided-tour-step {
     display: none !important;
@@ -44,14 +60,22 @@ body.cut-hide-language-select select#onboarding_ui_language_select {
 }
 
 body.cut-hide-redirect-links .welcomeShortcuts a[href*="docs.sillytavern.app"],
+body.cut-hide-redirect-links .welcomeShortcuts a[href*="tauritavern.github.io"],
 body.cut-hide-redirect-links .welcomeShortcuts a[href*="github.com"],
 body.cut-hide-redirect-links .welcomeShortcuts a[href*="discord.gg"],
+body.cut-hide-redirect-links .welcomeShortcuts a[href*="discord.com"],
+body.cut-hide-redirect-links .welcomeShortcuts #tt-welcome-discord-link,
 body.cut-hide-redirect-links .welcomeShortcuts .welcomeShortcutsSeparator,
 body.cut-hide-redirect-links .onboarding a[href*="docs.sillytavern.app"],
+body.cut-hide-redirect-links .onboarding a[href*="tauritavern.github.io"],
 body.cut-hide-redirect-links .onboarding a[href*="discord.gg"],
+body.cut-hide-redirect-links .onboarding a[href*="discord.com"],
 body.cut-hide-redirect-links .welcomeHeader a[href*="docs.sillytavern.app"],
+body.cut-hide-redirect-links .welcomeHeader a[href*="tauritavern.github.io"],
 body.cut-hide-redirect-links .welcomeHeader a[href*="github.com"],
-body.cut-hide-redirect-links .welcomeHeader a[href*="discord.gg"] {
+body.cut-hide-redirect-links .welcomeHeader a[href*="discord.gg"],
+body.cut-hide-redirect-links .welcomeHeader a[href*="discord.com"],
+body.cut-hide-redirect-links .welcomeHeader #tt-welcome-discord-link {
     display: none !important;
 }
 

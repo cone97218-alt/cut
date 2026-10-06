@@ -1,5 +1,5 @@
 import { extension_settings } from '../../../extensions.js';
-import { saveSettingsDebounced } from '../../../../script.js';
+import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 
 const extensionName = 'cut';
 const defaultSettings = {
@@ -1693,6 +1693,43 @@ function applyModule2Settings() {
 }
 
 /**
+ * Accurately detects and tags welcome screen assistant message and prompt in SillyTavern and TauriTavern
+ */
+function applyWelcomeTrimmer() {
+    const settings = extension_settings[extensionName];
+    if (!settings || !settings.enabled) return;
+
+    const welcomeEnabled = !!settings.module1?.hideWelcome;
+    const hideAssistant = welcomeEnabled && !!settings.module1?.hideWelcomeAssistant;
+    const hidePrompt = welcomeEnabled && !!settings.module1?.hideWelcomePrompt;
+
+    if ($('#chat .welcomePanel').length > 0 || $('#chat .mes[type="assistant_message"]').length > 0 || $('#chat .mes[type="welcome_prompt"]').length > 0) {
+        $('#chat .mes').each(function () {
+            const $mes = $(this);
+            const isUser = $mes.attr('is_user') === 'true';
+            if (isUser) return;
+
+            const chName = ($mes.attr('ch_name') || '').trim();
+            const type = ($mes.attr('type') || '').trim();
+            const hasPromptButtons = $mes.find('button[data-target="sys-settings-button"], button[data-target="rightNavHolder"]').length > 0;
+
+            if (type === 'welcome_prompt' || hasPromptButtons) {
+                $mes.toggleClass('cut-hide-prompt-mes', hidePrompt);
+            } else if (
+                type === 'assistant_message' ||
+                type === 'assistant_note' ||
+                chName.toLowerCase() === 'assistant' ||
+                chName === '助手' ||
+                $mes.find('.avatar img[src*="Assistant"]').length > 0 ||
+                $mes.find('.avatar img[src*="assistant"]').length > 0
+            ) {
+                $mes.toggleClass('cut-hide-assistant-mes', hideAssistant);
+            }
+        });
+    }
+}
+
+/**
  * Applies CSS classes and dynamic CSS variables according to settings
  */
 function applySettings() {
@@ -1729,6 +1766,8 @@ function applySettings() {
     body.classList.toggle('cut-fix-veridis-rewrite', !!settings.module1.fixVeridisRewriteField);
     body.classList.toggle('cut-hide-veridis-remark', !!settings.module1.hideVeridisRemark);
     body.classList.toggle('cut-hide-veridis-mode', !!settings.module1.hideVeridisRewriteMode);
+
+    applyWelcomeTrimmer();
 
     // Module 2 Dynamic Height Features [CSS Variables]
     const pHeight = parseInt(settings.module2.personaHeight) || 450;
@@ -2637,11 +2676,32 @@ jQuery(async () => {
     bindCopyRegexAction();
     bindApplyCustomCssAction();
 
+    if (typeof eventSource?.on === 'function' && event_types) {
+        if (event_types.EXTENSION_SETTINGS_LOADED) {
+            eventSource.on(event_types.EXTENSION_SETTINGS_LOADED, () => {
+                loadSettings();
+                applySettings();
+            });
+        }
+        if (event_types.APP_READY) {
+            eventSource.on(event_types.APP_READY, () => {
+                loadSettings();
+                applySettings();
+            });
+        }
+        if (event_types.CHAT_CHANGED) {
+            eventSource.on(event_types.CHAT_CHANGED, () => {
+                applyWelcomeTrimmer();
+            });
+        }
+    }
+
     const checkDrawerInterval = setInterval(() => {
         applyPromptManagerMaximizeButton();
         applyPromptManagerEntryParamsFolding();
         applyRegexEditorEnhancements();
         applyMaximizedEditorScrollActions();
+        applyWelcomeTrimmer();
 
         if ($('#extensions_settings').length > 0 || $('#rm_extensions_block').length > 0) {
             renderSettingsUI();
