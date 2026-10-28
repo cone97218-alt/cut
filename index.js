@@ -506,6 +506,7 @@ function applyVeridisSubruleParamsFolding() {
  * Enhances Regex Editor instances by adding full-screen maximize and copy icons
  */
 function applyRegexEditorEnhancements() {
+    if (!document.querySelector('.find_regex, .regex_editor')) return;
     const settings = extension_settings[extensionName];
     const isMasterEnabled = settings && settings.enabled;
     const isModule2Enabled = isMasterEnabled && settings.module2;
@@ -1094,6 +1095,7 @@ function bindSearchReplaceEvents($wrapper, $textarea) {
  * Injects Search & Replace toolbar in fullscreen textareas
  */
 function applyMaximizedEditorScrollActions() {
+    if (!document.querySelector('.maximized_textarea')) return;
     const settings = extension_settings[extensionName];
     const isMasterEnabled = settings && settings.enabled;
     const isModule2Enabled = isMasterEnabled && settings.module2;
@@ -1700,33 +1702,36 @@ function applyWelcomeTrimmer() {
     if (!settings || !settings.enabled) return;
 
     const welcomeEnabled = !!settings.module1?.hideWelcome;
-    const hideAssistant = welcomeEnabled && !!settings.module1?.hideWelcomeAssistant;
-    const hidePrompt = welcomeEnabled && !!settings.module1?.hideWelcomePrompt;
+    if (!welcomeEnabled) return;
 
-    if ($('#chat .welcomePanel').length > 0 || $('#chat .mes[type="assistant_message"]').length > 0 || $('#chat .mes[type="welcome_prompt"]').length > 0) {
-        $('#chat .mes').each(function () {
-            const $mes = $(this);
-            const isUser = $mes.attr('is_user') === 'true';
-            if (isUser) return;
+    const hideAssistant = !!settings.module1?.hideWelcomeAssistant;
+    const hidePrompt = !!settings.module1?.hideWelcomePrompt;
 
-            const chName = ($mes.attr('ch_name') || '').trim();
-            const type = ($mes.attr('type') || '').trim();
-            const hasPromptButtons = $mes.find('button[data-target="sys-settings-button"], button[data-target="rightNavHolder"]').length > 0;
+    const $chatMes = $('#chat .mes:lt(5)');
+    if ($chatMes.length === 0) return;
 
-            if (type === 'welcome_prompt' || hasPromptButtons) {
-                $mes.toggleClass('cut-hide-prompt-mes', hidePrompt);
-            } else if (
-                type === 'assistant_message' ||
-                type === 'assistant_note' ||
-                chName.toLowerCase() === 'assistant' ||
-                chName === '助手' ||
-                $mes.find('.avatar img[src*="Assistant"]').length > 0 ||
-                $mes.find('.avatar img[src*="assistant"]').length > 0
-            ) {
-                $mes.toggleClass('cut-hide-assistant-mes', hideAssistant);
-            }
-        });
-    }
+    $chatMes.each(function () {
+        const $mes = $(this);
+        const isUser = $mes.attr('is_user') === 'true';
+        if (isUser) return;
+
+        const chName = ($mes.attr('ch_name') || '').trim();
+        const type = ($mes.attr('type') || '').trim();
+        const hasPromptButtons = $mes.find('button[data-target="sys-settings-button"], button[data-target="rightNavHolder"]').length > 0;
+
+        if (type === 'welcome_prompt' || hasPromptButtons) {
+            $mes.toggleClass('cut-hide-prompt-mes', hidePrompt);
+        } else if (
+            type === 'assistant_message' ||
+            type === 'assistant_note' ||
+            chName.toLowerCase() === 'assistant' ||
+            chName === '助手' ||
+            $mes.find('.avatar img[src*="Assistant"]').length > 0 ||
+            $mes.find('.avatar img[src*="assistant"]').length > 0
+        ) {
+            $mes.toggleClass('cut-hide-assistant-mes', hideAssistant);
+        }
+    });
 }
 
 /**
@@ -1798,9 +1803,81 @@ function applySettings() {
 /**
  * Renders the extension configuration panel inside the Extensions drawer with sub-tabs
  */
+let isSettingsBound = false;
+
+/**
+ * Synchronizes extension settings UI values and toggles without rebinding events
+ */
+function syncSettingsUIValues() {
+    const settings = extension_settings[extensionName];
+    if (!settings || !settings.module1 || !settings.module2) return;
+
+    $('#cut_master_toggle').prop('checked', settings.enabled);
+    $('#cut_m1_welcome').prop('checked', settings.module1.hideWelcome);
+    $('#cut_m1_welcome_assistant').prop('checked', settings.module1.hideWelcomeAssistant);
+    $('#cut_m1_welcome_prompt').prop('checked', settings.module1.hideWelcomePrompt);
+    $('#cut_m1_welcome_header_title').prop('checked', settings.module1.hideWelcomeHeaderTitle);
+    $('#cut_m1_welcome_shortcuts').prop('checked', settings.module1.hideWelcomeShortcuts);
+    $('#cut_m1_welcome_onboarding').prop('checked', settings.module1.hideWelcomeOnboarding);
+
+    $('#cut_welcome_sub_options').toggle(!!settings.module1.hideWelcome);
+
+    $('#cut_m1_tutorials').prop('checked', settings.module1.hideTutorials);
+    $('#cut_m1_language').prop('checked', settings.module1.hideLanguageSelect);
+    $('#cut_m1_redirects').prop('checked', settings.module1.hideRedirectLinks);
+    $('#cut_m1_slidertips').prop('checked', settings.module1.hideSliderTips);
+    $('#cut_m1_ccinvalid').prop('checked', settings.module1.hideCcInvalid);
+    $('#cut_m1_mobile_input').prop('checked', settings.module1.fixMobileInput);
+    $('#cut_m1_veridis_rewrite').prop('checked', settings.module1.fixVeridisRewriteField !== false);
+    $('#cut_m1_veridis_remark').prop('checked', !!settings.module1.hideVeridisRemark);
+    $('#cut_m1_veridis_mode').prop('checked', !!settings.module1.hideVeridisRewriteMode);
+
+    $('#cut_m2_fold_veridis_params').prop('checked', settings.module2.foldVeridisSubruleParams !== false);
+    $('#cut_m2_fold_presets').prop('checked', settings.module2.foldPresets);
+    $('#cut_m2_fold_witop').prop('checked', settings.module2.foldWorldInfoTop);
+    $('#cut_m2_fold_user_avatars').prop('checked', settings.module2.foldUserAvatars);
+    $('#cut_m2_fold_persona').prop('checked', settings.module2.foldPersonaSettings);
+    $('#cut_m2_fold_first_message').prop('checked', settings.module2.foldFirstMessage);
+    $('#cut_m2_fold_custom_css').prop('checked', settings.module2.foldCustomCss);
+    $('#cut_m2_fold_ui_effects').prop('checked', settings.module2.foldUiEffects);
+    $('#cut_m2_fold_theme_toggles').prop('checked', settings.module2.foldThemeToggles);
+    $('#cut_m2_fold_user_advanced').prop('checked', settings.module2.foldUserAdvanced);
+    $('#cut_m2_fold_pm_params').prop('checked', settings.module2.foldPmEntryParams !== false);
+    $('#cut_m2_pm_maximize').prop('checked', settings.module2.enablePmMaximize !== false);
+    $('#cut_m2_regex_enhancements').prop('checked', settings.module2.enableRegexEnhancements !== false);
+    $('#cut_m2_copy_custom_css').prop('checked', settings.module2.enableCopyCustomCss !== false);
+    $('#cut_m2_apply_custom_css').prop('checked', settings.module2.enableApplyCustomCss !== false);
+    $('#cut_m2_enable_fullscreen_editor').prop('checked', settings.module2.enableFullscreenEditor !== false);
+
+    // Height Toggles & Input Values
+    $('#cut_m2_fullscreen_height_toggle').prop('checked', settings.module2.enableFullscreenEditorHeight !== false);
+    $('#cut_m2_fullscreen_height_val').val(settings.module2.fullscreenEditorHeight || 55);
+    $('#cut_m2_fullscreen_top_val').val(settings.module2.fullscreenEditorTop !== undefined ? settings.module2.fullscreenEditorTop : 10);
+
+    $('#cut_m2_persona_height_toggle').prop('checked', settings.module2.enablePersonaHeight);
+    $('#cut_m2_persona_height_val').val(settings.module2.personaHeight || 450);
+
+    $('#cut_m2_char_desc_height_toggle').prop('checked', settings.module2.enableCharDescHeight);
+    $('#cut_m2_char_desc_height_val').val(settings.module2.charDescHeight || 450);
+
+    $('#cut_m2_css_height_toggle').prop('checked', settings.module2.enableCssHeight);
+    $('#cut_m2_css_height_val').val(settings.module2.customCssHeight || 500);
+
+    $('#cut_m2_avatar_height_toggle').prop('checked', settings.module2.enableAvatarHeight);
+    $('#cut_m2_avatar_height_val').val(settings.module2.userAvatarHeight || 300);
+
+    $('#cut_modules_wrapper').toggle(settings.enabled);
+}
+
 function renderSettingsUI() {
     const containerId = 'cut_container';
     let $container = $(`#${containerId}`);
+
+    // 如果面板已经存在且已绑定过事件，只需轻量同步数值即可，不重复进行 DOM 构建与事件绑定
+    if ($container.length > 0 && isSettingsBound) {
+        syncSettingsUIValues();
+        return;
+    }
 
     if ($container.length === 0) {
         const html = `
@@ -2524,6 +2601,7 @@ function renderSettingsUI() {
     });
 
     $('#cut_modules_wrapper').toggle(settings.enabled);
+    isSettingsBound = true;
 }
 
 /**
@@ -2676,43 +2754,74 @@ jQuery(async () => {
     bindCopyRegexAction();
     bindApplyCustomCssAction();
 
+    // 监听 SillyTavern 生命周期事件
     if (typeof eventSource?.on === 'function' && event_types) {
         if (event_types.EXTENSION_SETTINGS_LOADED) {
             eventSource.on(event_types.EXTENSION_SETTINGS_LOADED, () => {
                 loadSettings();
                 applySettings();
+                syncSettingsUIValues();
             });
         }
         if (event_types.APP_READY) {
             eventSource.on(event_types.APP_READY, () => {
                 loadSettings();
                 applySettings();
+                // 错峰初始化：ST 核心启动完成后，再渲染设置面板和模块二折叠，完全不抢占 ST 首屏资源
+                setTimeout(() => {
+                    if ($('#cut_container').length === 0) {
+                        renderSettingsUI();
+                    }
+                    applyModule2Settings();
+                    applyWelcomeTrimmer();
+                }, 300);
             });
         }
         if (event_types.CHAT_CHANGED) {
             eventSource.on(event_types.CHAT_CHANGED, () => {
-                applyWelcomeTrimmer();
+                setTimeout(applyWelcomeTrimmer, 100);
             });
         }
     }
 
+    // 降频至 2000ms 且加入轻量守卫，彻底消除空转与主线程卡顿
     const checkDrawerInterval = setInterval(() => {
-        applyPromptManagerMaximizeButton();
-        applyPromptManagerEntryParamsFolding();
-        applyRegexEditorEnhancements();
-        applyMaximizedEditorScrollActions();
-        applyWelcomeTrimmer();
-
-        if ($('#extensions_settings').length > 0 || $('#rm_extensions_block').length > 0) {
-            renderSettingsUI();
+        // 1. 设置面板未挂载时按需挂载
+        if ($('#cut_container').length === 0) {
+            if ($('#extensions_settings').length > 0 || $('#rm_extensions_block .extensions_block').length > 0) {
+                renderSettingsUI();
+            }
         }
-        if ($('#ai_response_configuration').length > 0 || $('#wi-holder').length > 0 || $('.persona_management_right_column').length > 0 || $('#user-settings-block-content').length > 0 || $('.persona_management_left_column').length > 0 || $('#firstMessageWrapper').length > 0 || $('#blai-subrule-edit-modal').length > 0) {
+
+        // 2. 弹窗和折叠增强：仅在相关 DOM 节点存在时按需处理
+        if (document.querySelector('#completion_prompt_manager_forbid_overrides_block')) {
+            applyPromptManagerMaximizeButton();
+        }
+        if (document.querySelector('#completion_prompt_manager_popup_edit')) {
+            applyPromptManagerEntryParamsFolding();
+        }
+        if (document.querySelector('.find_regex, .regex_editor')) {
+            applyRegexEditorEnhancements();
+        }
+        if (document.querySelector('.maximized_textarea')) {
+            applyMaximizedEditorScrollActions();
+        }
+        if (document.querySelector('#blai-subrule-edit-modal')) {
+            applyVeridisSubruleParamsFolding();
+        }
+
+        // 3. 常规面板折叠（预设、世界书、用户设置等），只在目标容器存在时检查
+        if (
+            $('#ai_response_configuration').length > 0 ||
+            $('#wi-holder').length > 0 ||
+            $('.persona_management_right_column').length > 0 ||
+            $('div[name="UserSettingsFirstColumn"]').length > 0 ||
+            $('.persona_management_left_column').length > 0 ||
+            $('#firstMessageWrapper').length > 0
+        ) {
             applyModule2Settings();
         }
-        if ($('#cut_container').length > 0 && $('#cut_m2_gen_params_drawer').length > 0) {
-            // keep polling lightly for dynamic DOM drawer updates
-        }
-    }, 500);
+    }, 2000);
 
-    console.log('[UI Trimmer] Extension "cut" (页面精简) initialized successfully.');
+    console.log('[UI Trimmer] Extension "cut" (页面精简) initialized successfully with optimized performance.');
 });
