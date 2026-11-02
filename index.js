@@ -16,7 +16,6 @@ const defaultSettings = {
         hideRedirectLinks: true,
         hideSliderTips: true,
         hideCcInvalid: true,
-        fixMobileInput: true,
         fixVeridisRewriteField: true,
         hideVeridisRemark: false,
         hideVeridisRewriteMode: false,
@@ -64,182 +63,6 @@ function updateUnappliedCssState(unapplied) {
     }
 }
 
-// Global state for auto-focus interception (Inspired by SillyTavern-Layout & Mobile-Focus-Interceptor)
-const originalFocus = HTMLElement.prototype.focus;
-let lastDirectInputInteraction = 0;
-let lastTabInteraction = 0;
-let isAutoFocusInterceptorBound = false;
-
-// Paste Performance Batching State (Inspired by akira59851/Mobile-Focus-Interceptor)
-let isPasteFixInstalled = false;
-let pasteBurstTimestamps = [];
-let pasteHasSubstantialText = false;
-let pasteTextParts = [];
-let pasteStartPos = null;
-let pasteTarget = null;
-let pasteBatching = false;
-let pasteFlushTimer = null;
-let pasteCurrentTimeout = 300;
-let pasteRafId = null;
-
-function isEditableInput(el) {
-    return el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable);
-}
-
-/**
- * Merges and flushes accumulated paste chunks in a single rAF frame with visibility suppression to prevent UI freeze
- */
-function flushPasteBuffer() {
-    pasteBatching = false;
-    clearTimeout(pasteFlushTimer);
-    pasteFlushTimer = null;
-    pasteBurstTimestamps = [];
-    pasteHasSubstantialText = false;
-    pasteCurrentTimeout = 300;
-
-    if (pasteTextParts.length === 0 || pasteStartPos === null || !pasteTarget) {
-        pasteTextParts = [];
-        pasteStartPos = null;
-        pasteTarget = null;
-        return;
-    }
-
-    const target = pasteTarget;
-    const accumulatedText = pasteTextParts.join('');
-    const start = pasteStartPos;
-    const before = target.value ? target.value.substring(0, start) : '';
-    const after = target.value ? target.value.substring(target.selectionEnd || start) : '';
-
-    pasteTextParts = [];
-    pasteStartPos = null;
-    pasteTarget = null;
-
-    target.style.visibility = 'hidden';
-    target.value = before + accumulatedText + after;
-    const newPos = start + accumulatedText.length;
-    if (typeof target.setSelectionRange === 'function') {
-        target.setSelectionRange(newPos, newPos);
-    }
-
-    pasteRafId = requestAnimationFrame(() => {
-        pasteRafId = null;
-        target.style.visibility = '';
-        target.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-}
-
-/**
- * Initializes mobile large text and rapid burst paste performance optimization.
- * Normal single-key typing (insertText) is intentionally excluded — it is not a paste.
- */
-function initPastePerformanceFix() {
-    if (isPasteFixInstalled) return;
-    isPasteFixInstalled = true;
-
-    const pasteInputTypes = ['insertFromPaste', 'insertCompositionText', 'insertReplacementText'];
-
-    document.addEventListener('beforeinput', (e) => {
-        const settings = extension_settings[extensionName];
-        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-        if (!isEnabled) return;
-
-        const target = e.target;
-        if (!isEditableInput(target) || e.isComposing) return;
-        if (pasteInputTypes.indexOf(e.inputType) === -1) return;
-
-        let text = '';
-        if (e.dataTransfer && e.dataTransfer.getData('text/plain')) {
-            text = e.dataTransfer.getData('text/plain');
-        } else if (typeof e.data === 'string') {
-            text = e.data;
-        } else if (e.data !== null && e.data !== undefined) {
-            text = String(e.data);
-        }
-
-        if (!text) return;
-
-        if (pasteBatching && pasteTarget && pasteTarget !== target) {
-            flushPasteBuffer();
-        }
-
-        if (text.length >= 3000) {
-            if (!pasteBatching) {
-                pasteBatching = true;
-                pasteTarget = target;
-                pasteStartPos = target.selectionStart || 0;
-                pasteTextParts = [];
-            }
-            pasteTextParts.push(text);
-            e.preventDefault();
-            clearTimeout(pasteFlushTimer);
-            pasteFlushTimer = setTimeout(flushPasteBuffer, 100);
-            return;
-        }
-
-        const now = Date.now();
-        pasteBurstTimestamps.push(now);
-        if (text.length > 3) pasteHasSubstantialText = true;
-        while (pasteBurstTimestamps.length > 0 && now - pasteBurstTimestamps[0] > 200) {
-            pasteBurstTimestamps.shift();
-        }
-
-        if (pasteBurstTimestamps.length >= 3 && pasteHasSubstantialText) {
-            if (!pasteBatching) {
-                pasteBatching = true;
-                pasteTarget = target;
-                pasteStartPos = target.selectionStart || 0;
-                pasteTextParts = [];
-                pasteCurrentTimeout = 300;
-            }
-            pasteTextParts.push(text);
-            e.preventDefault();
-            pasteCurrentTimeout = Math.min(pasteCurrentTimeout * 2, 2000);
-            clearTimeout(pasteFlushTimer);
-            pasteFlushTimer = setTimeout(flushPasteBuffer, pasteCurrentTimeout);
-        } else {
-            if (pasteBatching) flushPasteBuffer();
-        }
-    }, true);
-}
-
-/**
- * Intercepts programmatic .focus() calls to suppress unwanted auto-focus on mobile.
- * Uses prototype override only — fires before the element is focused, so we silently
- * drop disallowed calls rather than needing a follow-up blur().
- */
-function initAutoFocusInterceptor() {
-    if (isAutoFocusInterceptorBound) return;
-    isAutoFocusInterceptorBound = true;
-
-    const updateInteractionTime = (e) => {
-        if (e.target && e.target.closest && e.target.closest('input, textarea, label, button, .menu_button')) {
-            lastDirectInputInteraction = Date.now();
-        }
-    };
-    document.addEventListener('pointerdown', updateInteractionTime, { capture: true, passive: true });
-    document.addEventListener('mousedown',   updateInteractionTime, { capture: true, passive: true });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Tab') lastTabInteraction = Date.now();
-    }, { capture: true });
-
-    HTMLElement.prototype.focus = function (options) {
-        const settings = extension_settings[extensionName];
-        const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-        if (isEnabled && (this.tagName === 'INPUT' || this.tagName === 'TEXTAREA')) {
-            if (document.activeElement === this) {
-                lastDirectInputInteraction = Date.now();
-                return originalFocus.call(this, options);
-            }
-            const isUserInitiated =
-                (Date.now() - lastDirectInputInteraction < 1500) ||
-                (Date.now() - lastTabInteraction < 1500);
-            if (!isUserInitiated) return;
-        }
-        return originalFocus.call(this, options);
-    };
-}
-
 /**
  * Ensures settings object is populated with default values
  */
@@ -255,105 +78,12 @@ function loadSettings() {
     } else {
         extension_settings[extensionName].module1 = Object.assign({}, defaultSettings.module1, extension_settings[extensionName].module1);
     }
+    delete extension_settings[extensionName].module1.fixMobileInput;
 
     if (!extension_settings[extensionName].module2) {
         extension_settings[extensionName].module2 = Object.assign({}, defaultSettings.module2);
     } else {
         extension_settings[extensionName].module2 = Object.assign({}, defaultSettings.module2, extension_settings[extensionName].module2);
-    }
-}
-
-// Mobile long-text caret anchor — records intended caret offset BEFORE keyboard resize distorts it
-let isCaretAnchorInstalled = false;
-let lastCaretTouchTarget = null;
-let lastCaretPos = null;
-let caretAnchorTimer = null;
-
-/**
- * On mobile, captures the user's intended caret offset on touchend (after browser has resolved the tap
- * position, but before the virtual keyboard pops up and reflows the textarea). When visualViewport then
- * fires a resize event (keyboard open/close), restores the caret and scrolls it into view — one shot,
- * no polling.
- */
-function initMobileCaretAnchor() {
-    if (isCaretAnchorInstalled) return;
-    isCaretAnchorInstalled = true;
-
-    // touchend fires after the browser finalises tap-to-caret mapping, giving us the true selectionStart
-    document.addEventListener('touchend', (e) => {
-        const target = e.target;
-        if (!target || (target.tagName !== 'TEXTAREA' && target.tagName !== 'INPUT')) return;
-
-        lastDirectInputInteraction = Date.now();
-        lastCaretTouchTarget = target;
-
-        // Defer reading selectionStart by one rAF frame: if the textarea was NOT previously
-        // focused, the browser sets the caret AFTER the focus event fires (which happens
-        // asynchronously after touchend). Reading synchronously on touchend would give us the
-        // stale previous-caret position rather than the tap's true target offset.
-        requestAnimationFrame(() => {
-            if (target === document.activeElement && typeof target.selectionStart === 'number') {
-                lastCaretPos = target.selectionStart;
-            }
-        });
-    }, { capture: true, passive: true });
-
-    if (!window.visualViewport) return; // desktop fallback — nothing to do
-
-    window.visualViewport.addEventListener('resize', () => {
-        const settings = extension_settings[extensionName];
-        if (!settings?.enabled || !settings?.module1?.fixMobileInput) return;
-
-        const target = document.activeElement;
-        if (
-            !target ||
-            (target.tagName !== 'TEXTAREA' && target.tagName !== 'INPUT') ||
-            lastCaretPos === null ||
-            target !== lastCaretTouchTarget
-        ) return;
-
-        // Debounce: keyboard animations fire multiple resize events; wait for them to settle
-        clearTimeout(caretAnchorTimer);
-        caretAnchorTimer = setTimeout(() => {
-            if (target !== document.activeElement || typeof target.setSelectionRange !== 'function') return;
-
-            target.setSelectionRange(lastCaretPos, lastCaretPos);
-
-            // Scroll the caret line into the vertical centre of the (now smaller) textarea
-            if (target.tagName === 'TEXTAREA' && target.scrollHeight > target.clientHeight) {
-                const lineCount = Math.max(1, (target.value || '').split('\n').length);
-                const caretLine = Math.max(1, (target.value || '').substring(0, lastCaretPos).split('\n').length);
-                const lineHeight = target.scrollHeight / lineCount;
-                target.scrollTop = Math.max(0, caretLine * lineHeight - target.clientHeight / 2);
-            }
-        }, 120);
-    });
-}
-
-/**
- * Guards against older WebView behaviour where opening the keyboard scrolls the page
- * body instead of letting the inner #chat container manage its own scroll.
- * Scoped to #send_textarea only — other inputs do not need this.
- */
-function applyMobileInputAntiJump() {
-    const isMobile = (window.innerWidth <= 768) || (('ontouchstart' in window) && window.innerWidth <= 1024);
-    const settings = extension_settings[extensionName];
-    const isEnabled = settings && settings.enabled && settings.module1 && settings.module1.fixMobileInput;
-
-    document.body.classList.toggle('cut-mobile-anti-jump', isEnabled && isMobile);
-
-    if (isEnabled && isMobile) {
-        $(document).off('focusin.cut_mobile').on('focusin.cut_mobile', '#send_textarea', function () {
-            const chatEl = document.getElementById('chat');
-            if (!chatEl) return;
-            const savedScroll = chatEl.scrollTop;
-            requestAnimationFrame(() => {
-                window.scrollTo(0, 0);
-                chatEl.scrollTop = savedScroll;
-            });
-        });
-    } else {
-        $(document).off('focusin.cut_mobile');
     }
 }
 
@@ -1746,11 +1476,10 @@ function applySettings() {
             'cut-hide-welcome', 'cut-hide-welcome-assistant', 'cut-hide-welcome-prompt',
             'cut-hide-welcome-header-title', 'cut-hide-welcome-shortcuts', 'cut-hide-welcome-onboarding',
             'cut-hide-tutorials', 'cut-hide-language-select', 'cut-hide-redirect-links', 
-            'cut-hide-slider-tips', 'cut-hide-cc-invalid', 'cut-mobile-anti-jump',
+            'cut-hide-slider-tips', 'cut-hide-cc-invalid',
             'cut-persona-height-active', 'cut-char-desc-height-active', 'cut-css-height-active', 'cut-avatar-height-active'
         );
         applyModule2Settings();
-        applyMobileInputAntiJump();
         return;
     }
 
@@ -1797,7 +1526,6 @@ function applySettings() {
     body.classList.toggle('cut-fullscreen-editor-height-active', !!(settings.module2 && settings.module2.enableFullscreenEditorHeight));
 
     applyModule2Settings();
-    applyMobileInputAntiJump();
 }
 
 /**
@@ -1827,7 +1555,6 @@ function syncSettingsUIValues() {
     $('#cut_m1_redirects').prop('checked', settings.module1.hideRedirectLinks);
     $('#cut_m1_slidertips').prop('checked', settings.module1.hideSliderTips);
     $('#cut_m1_ccinvalid').prop('checked', settings.module1.hideCcInvalid);
-    $('#cut_m1_mobile_input').prop('checked', settings.module1.fixMobileInput);
     $('#cut_m1_veridis_rewrite').prop('checked', settings.module1.fixVeridisRewriteField !== false);
     $('#cut_m1_veridis_remark').prop('checked', !!settings.module1.hideVeridisRemark);
     $('#cut_m1_veridis_mode').prop('checked', !!settings.module1.hideVeridisRewriteMode);
@@ -2007,15 +1734,6 @@ function renderSettingsUI() {
                                 </label>
                             </div>
                             <div class="cut-option-desc">隐藏高级格式化中聊天补全用不了的设置项 ([data-cc-null]) 与提示</div>
-
-                            <div class="cut-option-item">
-                                <label class="cut-option-label" for="cut_m1_mobile_input">
-                                    <input type="checkbox" id="cut_m1_mobile_input">
-                                    <span>手机打字防弹</span>
-                                    <span class="cut-option-tag tag-js">JS</span>
-                                </label>
-                            </div>
-                            <div class="cut-option-desc">双重拦截机制与分段粘贴渲染合并，彻底解决移动端代码自动聚焦拉起键盘、打字弹跳、长文本粘贴卡顿与视口抖动问题</div>
 
                             <div class="cut-option-item">
                                 <label class="cut-option-label" for="cut_m1_veridis_rewrite">
@@ -2306,7 +2024,6 @@ function renderSettingsUI() {
     $('#cut_m1_redirects').prop('checked', settings.module1.hideRedirectLinks);
     $('#cut_m1_slidertips').prop('checked', settings.module1.hideSliderTips);
     $('#cut_m1_ccinvalid').prop('checked', settings.module1.hideCcInvalid);
-    $('#cut_m1_mobile_input').prop('checked', settings.module1.fixMobileInput);
     $('#cut_m1_veridis_rewrite').prop('checked', settings.module1.fixVeridisRewriteField !== false);
     $('#cut_m1_veridis_remark').prop('checked', !!settings.module1.hideVeridisRemark);
     $('#cut_m1_veridis_mode').prop('checked', !!settings.module1.hideVeridisRewriteMode);
@@ -2403,12 +2120,6 @@ function renderSettingsUI() {
 
     $('#cut_m1_ccinvalid').off('change').on('change', function () {
         settings.module1.hideCcInvalid = $(this).prop('checked');
-        applySettings();
-        saveSettingsDebounced();
-    });
-
-    $('#cut_m1_mobile_input').off('change').on('change', function () {
-        settings.module1.fixMobileInput = $(this).prop('checked');
         applySettings();
         saveSettingsDebounced();
     });
@@ -2746,9 +2457,6 @@ function bindCopyRegexAction() {
 // Initialize Extension
 jQuery(async () => {
     loadSettings();
-    initAutoFocusInterceptor();
-    initPastePerformanceFix();
-    initMobileCaretAnchor();
     applySettings();
     bindCopyCustomCssAction();
     bindCopyRegexAction();
